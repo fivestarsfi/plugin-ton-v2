@@ -22,52 +22,69 @@ This plugin provides functionality to:
 ### Screenshot
 
 #### Transfer TON
+
 ![ton transfer](./screenshot/transfer.png "Transfer TON")
 
 #### Transfer Jetton
+
 ![jetton transfer](./screenshot/jetton-transfer.png "Transfer Jetton")
 
 #### NFT Transfer
+
 ![nft transfer](./screenshot/nft-transfer.png "NFT Transfer")
 
 #### Batch Transfer (Jetton and TON)
+
 ![jetton and ton transfer](./screenshot/ton-jetton-batch-transfer.png "Transfer Jetton and TON")
 
 #### Connect with TonConnect QR Code
+
 ![](./screenshot/connect.png "Connect with TonConnect QR Code")
 
 #### TonConnect Status
+
 ![connection status](./screenshot/status.png "TonConnect Status")
 
 #### Disconnect
+
 ![disconnect](./screenshot/disconnect.png "Disconnect")
 
 #### NFT Transfer
+
 ![nft transfer](./screenshot/nft-transfer.png "NFT Transfer")
 
 #### NFT Mint
+
 ![nft mint](./screenshot/mint.png "NFT Mint")
 
 #### NFT Collection Data
+
 ![nft collection data](./screenshot/get-colleciton-data.png "NFT Collection Data")
 
 #### Lending Info for TON
+
 ![lending](./screenshot/lending_info.png "Get lending info for TON")
 
 #### NFT Listing and Cancellation
+
 ![nft listing and cancellation](./screenshot/nft-listing-and-cancel.png "NFT Listing Creation and Cancellation")
 
 #### NFT Auction Creation
+
 ![auction creation](./screenshot/nft-auction.png "NFT Auction Creation")
 
 #### NFT Bidding and Buying
+
 ![bidding and buying](./screenshot/nft-bid-and-buy.png "NFT Bidding and Buying")
 
 #### SWAP with STON
+
 ##### Start SWAP | in between query of pending swap information | Finish swap
+
 ![STON swap confirmed](./screenshot/ston-swap-confirmed.png "Swap with STON confirmed")
 
 ##### Start SWAP | Cancel swap
+
 ![STON swap cancelled](./screenshot/ston-swap-cancelled.png "Swap with STON cancelled")
 
 ### Quick Start
@@ -82,14 +99,15 @@ export OPENAI_API_KEY=""
 # from https://t.me/toncenter to get your testnet apikey
 export TON_RPC_API_KEY=""
 
-# nvm use 23 && npm install -g pnpm
+# Install bun if not already installed
+# curl -fsSL https://bun.sh/install | bash
 bash ./packages/plugin-ton/scripts/debug.sh
 ```
 
 ## Installation
 
 ```bash
-npm install @elizaos/plugin-ton
+bun add @elizaos/plugin-ton
 ```
 
 ## Configuration
@@ -121,8 +139,8 @@ Import and register the plugin in your Eliza configuration:
 import { tonPlugin } from "@elizaos/plugin-ton";
 
 export default {
-  plugins: [tonPlugin],
-  // ... other configuration
+    plugins: [tonPlugin],
+    // ... other configuration
 };
 ```
 
@@ -165,8 +183,8 @@ const action = new CreateTonWallet(runtime);
 
 // Create a new wallet with encryption
 const { walletAddress, mnemonic } = await action.createNewWallet({
-  rpcUrl: "https://toncenter.com/api/v2/jsonRPC",
-  encryptionPassword: "your-secure-password",
+    rpcUrl: "https://toncenter.com/api/v2/jsonRPC",
+    encryptionPassword: "your-secure-password",
 });
 ```
 
@@ -209,8 +227,8 @@ const action = new TransferAction(walletProvider);
 
 // Execute transfer
 const hash = await action.transfer({
-  recipient: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
-  amount: "1.5",
+    recipient: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
+    amount: "1.5",
 });
 ```
 
@@ -226,9 +244,9 @@ const jettonAction = new JettonInteractionAction(walletProvider);
 
 // Transfer jettons
 const result = await jettonAction.transfer(
-  "1.5", // Amount
-  "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4", // Recipient
-  "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE" // Jetton master address
+    "1.5", // Amount
+    "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4", // Recipient
+    "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE" // Jetton master address
 );
 ```
 
@@ -244,19 +262,21 @@ const action = new BatchTransferTokens(walletProvider);
 
 // Define batch transfers
 const batchTransfers = {
-  transfers: [
-    {
-      type: "ton",
-      recipientAddress: "0QBLy_5Fr6f8NSpMt8SmPGiItnUE0JxgTJZ6m6E8aXoLtJHB",
-      amount: "0.1", // TON amount
-    },
-    {
-      type: "token",
-      recipientAddress: "0QBLy_5Fr6f8NSpMt8SmPGiItnUE0JxgTJZ6m6E8aXoLtJHB",
-      tokenInd: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5", // Jetton address
-      amount: "1", // Jetton amount
-    },
-  ],
+    transfers: [
+        {
+            type: "ton",
+            recipientAddress:
+                "0QBLy_5Fr6f8NSpMt8SmPGiItnUE0JxgTJZ6m6E8aXoLtJHB",
+            amount: "0.1", // TON amount
+        },
+        {
+            type: "token",
+            recipientAddress:
+                "0QBLy_5Fr6f8NSpMt8SmPGiItnUE0JxgTJZ6m6E8aXoLtJHB",
+            tokenInd: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5", // Jetton address
+            amount: "1", // Jetton amount
+        },
+    ],
 };
 
 // Execute batch transfer
@@ -277,8 +297,8 @@ const transferAction = new TransferNFTAction(walletProvider);
 
 // Transfer NFT ownership
 const result = await transferAction.transfer({
-  nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
-  newOwner: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4"
+    nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
+    newOwner: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
 });
 ```
 
@@ -294,10 +314,10 @@ const mintNFTAction = new MintNFTAction(walletProvider);
 
 // Define mint parameters
 const mintParams = {
-  collectionAddress: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4", // Optional - if minting to existing collection
-  contentUri: "https://example.com/nft-metadata.json",
-  royaltyPercent: 5, // 5% royalty fee
-  ownerAddress: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4" // Optional - defaults to wallet address
+    collectionAddress: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4", // Optional - if minting to existing collection
+    contentUri: "https://example.com/nft-metadata.json",
+    royaltyPercent: 5, // 5% royalty fee
+    ownerAddress: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4", // Optional - defaults to wallet address
 };
 
 // Mint NFT
@@ -315,7 +335,9 @@ import { GetCollectionDataAction } from "@elizaos/plugin-ton";
 const getCollectionDataAction = new GetCollectionDataAction(walletProvider);
 
 // Get collection data
-const collectionData = await getCollectionDataAction.getData("EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4");
+const collectionData = await getCollectionDataAction.getData(
+    "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4"
+);
 ```
 
 ### Marketplace Operations
@@ -332,8 +354,8 @@ const listingAction = new CreateListingAction(walletProvider);
 
 // Create a listing
 const listingResult = await listingAction.list({
-  nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
-  fullPrice: "10", // Price in TON
+    nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
+    fullPrice: "10", // Price in TON
 });
 ```
 
@@ -349,10 +371,10 @@ const auctionAction = new CreateAuctionAction(walletProvider);
 
 // Create an auction
 const auctionResult = await auctionAction.createAuction({
-  nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
-  minimumBid: "5", // Minimum bid in TON
-  maximumBid: "20", // Buy now price in TON
-  expiryTime: "24", // Auction duration in hours
+    nftAddress: "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5",
+    minimumBid: "5", // Minimum bid in TON
+    maximumBid: "20", // Buy now price in TON
+    expiryTime: "24", // Auction duration in hours
 });
 ```
 
@@ -367,7 +389,9 @@ import { AuctionInteractionAction } from "@elizaos/plugin-ton";
 const auctionAction = new AuctionInteractionAction(walletProvider);
 
 // Get auction data
-const auctionData = await auctionAction.getAuctionData("0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5");
+const auctionData = await auctionAction.getAuctionData(
+    "0QDIUnzAEsgHLL7YSrvm_u7OYSKw93AQbtdidRdcbm7tQep5"
+);
 ```
 
 ### DEX Integration
@@ -384,9 +408,9 @@ const swapAction = new SwapAction(walletProvider);
 
 // Define assets for swap
 const tonAsset = { kind: "Ton" };
-const jettonAsset = { 
-  kind: "Jetton", 
-  contractAddress: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE" 
+const jettonAsset = {
+    kind: "Jetton",
+    contractAddress: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE",
 };
 
 // Swap TON for Jetton
@@ -409,15 +433,17 @@ const dexAction = new DexAction(walletProvider, dexProvider);
 
 // Define deposit parameters for Ston.fi
 const depositDetails = {
-  operation: "deposit",
-  dex: "stonfi",
-  jettonDeposits: [
-    {
-      jetton: { address: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE" },
-      amount: 10
-    }
-  ],
-  tonAmount: 1.5
+    operation: "deposit",
+    dex: "stonfi",
+    jettonDeposits: [
+        {
+            jetton: {
+                address: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE",
+            },
+            amount: 10,
+        },
+    ],
+    tonAmount: 1.5,
 };
 
 // Execute deposit
@@ -425,15 +451,17 @@ const txHash = await dexAction.run(depositDetails);
 
 // Define withdrawal parameters
 const withdrawDetails = {
-  operation: "withdraw",
-  dex: "stonfi",
-  jettonWithdrawals: [
-    {
-      jetton: { address: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE" }
-    }
-  ],
-  isTon: true,
-  amount: 0.5
+    operation: "withdraw",
+    dex: "stonfi",
+    jettonWithdrawals: [
+        {
+            jetton: {
+                address: "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE",
+            },
+        },
+    ],
+    isTon: true,
+    amount: 0.5,
 };
 
 // Execute withdrawal
@@ -453,7 +481,9 @@ import { GetLendingInfoAction } from "@elizaos/plugin-ton";
 const lendingInfoAction = new GetLendingInfoAction(walletProvider);
 
 // Get lending information for an address
-const lendingInfo = await lendingInfoAction.getLendingInfo("EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4");
+const lendingInfo = await lendingInfoAction.getLendingInfo(
+    "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4"
+);
 
 // Example response:
 // {
@@ -483,7 +513,9 @@ const priceProvider = await initTokenPriceProvider(runtime);
 const tonPrice = await priceProvider.getNativeTokenPriceInUsd();
 
 // Get Jetton price in USD
-const jettonPrice = await priceProvider.getJettonPriceInUsd("EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE");
+const jettonPrice = await priceProvider.getJettonPriceInUsd(
+    "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE"
+);
 ```
 
 ### Query Asset Information
@@ -497,7 +529,9 @@ import { QueryStonAssetAction } from "@elizaos/plugin-ton";
 const queryAction = new QueryStonAssetAction(walletProvider);
 
 // Query asset information
-const assetInfo = await queryAction.query("EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE");
+const assetInfo = await queryAction.query(
+    "EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovbIfW_t-SCALE"
+);
 ```
 
 ## Development
@@ -505,13 +539,13 @@ const assetInfo = await queryAction.query("EQBlqsm144Dq6SjbPI4jjZvA1hqTIP3CvHovb
 ### Building
 
 ```bash
-npm run build
+bun run build
 ```
 
 ### Testing
 
 ```bash
-npm run test
+bun test
 ```
 
 ## Dependencies
@@ -537,17 +571,17 @@ npm run test
 
 ```typescript
 interface TransferContent {
-  recipient: string;
-  amount: string | number;
+    recipient: string;
+    amount: string | number;
 }
 
 interface WalletPortfolio {
-  totalUsd: string;
-  totalNativeToken: string;
+    totalUsd: string;
+    totalNativeToken: string;
 }
 
 interface Prices {
-  nativeToken: { usd: string };
+    nativeToken: { usd: string };
 }
 ```
 
@@ -555,12 +589,12 @@ interface Prices {
 
 ```typescript
 const PROVIDER_CONFIG = {
-  MAINNET_RPC: "https://toncenter.com/api/v2/jsonRPC",
-  STONFI_TON_USD_POOL: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
-  CHAIN_NAME_IN_DEXSCREENER: "ton",
-  MAX_RETRIES: 3,
-  RETRY_DELAY: 2000,
-  TON_DECIMAL: BigInt(1000000000),
+    MAINNET_RPC: "https://toncenter.com/api/v2/jsonRPC",
+    STONFI_TON_USD_POOL: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
+    CHAIN_NAME_IN_DEXSCREENER: "ton",
+    MAX_RETRIES: 3,
+    RETRY_DELAY: 2000,
+    TON_DECIMAL: BigInt(1000000000),
 };
 ```
 
@@ -586,57 +620,52 @@ const PROVIDER_CONFIG = {
 ## Future Enhancements
 
 1. **Wallet Management**
-
-   - Multi-wallet support
-   - Hardware wallet integration
-   - Advanced key management
-   - Batch transaction processing
-   - Custom wallet contracts
-   - Recovery mechanisms
+    - Multi-wallet support
+    - Hardware wallet integration
+    - Advanced key management
+    - Batch transaction processing
+    - Custom wallet contracts
+    - Recovery mechanisms
 
 2. **Smart Contract Integration**
-
-   - Contract deployment tools
-   - FunC contract templates
-   - Testing framework
-   - Upgrade management
-   - Gas optimization
-   - Security analysis
+    - Contract deployment tools
+    - FunC contract templates
+    - Testing framework
+    - Upgrade management
+    - Gas optimization
+    - Security analysis
 
 3. **Token Operations**
-
-   - Jetton creation tools
-   - NFT support enhancement
-   - Token metadata handling
-   - Collection management
-   - Batch transfers
-   - Token standards
+    - Jetton creation tools
+    - NFT support enhancement
+    - Token metadata handling
+    - Collection management
+    - Batch transfers
+    - Token standards
 
 4. **DeFi Features**
-
-   - DEX integration
-   - Liquidity management
-   - Yield farming tools
-   - Price feed integration
-   - Swap optimization
-   - Portfolio tracking
+    - DEX integration
+    - Liquidity management
+    - Yield farming tools
+    - Price feed integration
+    - Swap optimization
+    - Portfolio tracking
 
 5. **Developer Tools**
-
-   - Enhanced debugging
-   - CLI improvements
-   - Documentation generator
-   - Integration templates
-   - Performance monitoring
-   - Testing utilities
+    - Enhanced debugging
+    - CLI improvements
+    - Documentation generator
+    - Integration templates
+    - Performance monitoring
+    - Testing utilities
 
 6. **Network Features**
-   - Workchain support
-   - Sharding optimization
-   - RPC management
-   - Network monitoring
-   - Archive node integration
-   - Custom endpoints
+    - Workchain support
+    - Sharding optimization
+    - RPC management
+    - Network monitoring
+    - Archive node integration
+    - Custom endpoints
 
 We welcome community feedback and contributions to help prioritize these enhancements.
 

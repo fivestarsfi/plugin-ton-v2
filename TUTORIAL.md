@@ -8,55 +8,55 @@ ElizaOS is an AI platform now integrated with the TON blockchain, enabling new p
 📱 Installation and Setup
 
 1. 📥 Install ElizaOS from source: https://github.com/elizaOS/eliza
-3. 🔗 Setup ElizaOS here: https://eliza.how/docs/0.25.9/intro
-2. 🧩 Enable the TON Plugin in your ElizaOS: npx elizaos plugins add @elizaos-plugins/ton-plugin
-3. 🔄 Connect your TON wallet to start using blockchain features: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/connect.png
+2. 🔗 Setup ElizaOS here: https://eliza.how/docs/0.25.9/intro
+3. 🧩 Enable the TON Plugin in your ElizaOS: npx elizaos plugins add @elizaos-plugins/ton-plugin
+4. 🔄 Connect your TON wallet to start using blockchain features: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/connect.png
 
 ▎💼 Key Features
 
 1. 🪙 TON Wallet Integration
-   - Manage your TON assets directly through ElizaOS
-   - Check balances and transaction history
-   - Send and receive TON coins
+    - Manage your TON assets directly through ElizaOS
+    - Check balances and transaction history
+    - Send and receive TON coins
 
 2. 📝 Smart Contract Interaction
-   - Deploy and interact with TON smart contracts
-   - Execute contract methods via natural language commands
+    - Deploy and interact with TON smart contracts
+    - Execute contract methods via natural language commands
 
 3. 🔍 Blockchain Data Access
-   - Query TON blockchain data
-   - Get real-time information about transactions and accounts
+    - Query TON blockchain data
+    - Get real-time information about transactions and accounts
 
 🛠️ Using TON Plugin Commands
 
 💰 Wallet Operations
 
 - 👛 Check wallet status:
-  - Ask: "What's my Wallet status?"
-  - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/status.png
+    - Ask: "What's my Wallet status?"
+    - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/status.png
 
 - 💸 Send TON:
-  - Say: "Send 1.5 TON to EQA..."
-  - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/transfer.png
+    - Say: "Send 1.5 TON to EQA..."
+    - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/transfer.png
 
 📊 Blockchain Queries
 
 - 🔍 Account Information:
-  - Ask: "Show information about this TON address: EQA..."
-  -  Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/status.png
+    - Ask: "Show information about this TON address: EQA..."
+    - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/status.png
 
 - 📜 Transaction History:
-  - Request: "Show my recent TON transactions"
+    - Request: "Show my recent TON transactions"
 
 📄 Smart Contract Interaction
 
 - 🚀 Deploy Contract:
-  - Say: "Deploy my Jetton Minter in TON blockchain"
-  - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/deploy-jetton-minter.png
+    - Say: "Deploy my Jetton Minter in TON blockchain"
+    - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/deploy-jetton-minter.png
 
 - 🔄 Call Contract Method:
-  - Request: "Call the 'transfer' method on my contract"
-  - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/get-colleciton-data.png
+    - Request: "Call the 'transfer' method on my contract"
+    - Example: https://github.com/elizaos-plugins/plugin-ton/blob/main/screenshot/get-colleciton-data.png
 
 ▎⚠️ Security Best Practices
 
@@ -68,14 +68,14 @@ ElizaOS is an AI platform now integrated with the TON blockchain, enabling new p
 ▎🆘 Troubleshooting
 
 1. 🔄 Plugin Not Working?
-   - Ensure ElizaOS is updated to the latest version
-   - Reinstall the TON plugin
-   - Check your internet connection
+    - Ensure ElizaOS is updated to the latest version
+    - Reinstall the TON plugin
+    - Check your internet connection
 
 2. 🚫 Transaction Failed?
-   - Verify you have sufficient TON for the transaction and fees
-   - Check that the recipient address is correct
-   - Try again with a smaller amount first
+    - Verify you have sufficient TON for the transaction and fees
+    - Check that the recipient address is correct
+    - Try again with a smaller amount first
 
 ▎📚 Resources and Support
 

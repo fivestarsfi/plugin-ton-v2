@@ -1,112 +1,40 @@
-import { describe, it, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { AuctionInteractionAction } from "../actions/auctionInteraction";
-import { defaultCharacter } from "@elizaos/core";
-import { type KeyPair, mnemonicToPrivateKey } from "@ton/crypto";
-import { WalletProvider } from "../providers/wallet";
-
-
-// Mock NodeCache
-vi.mock("node-cache", () => {
-  return {
-      default: vi.fn().mockImplementation(() => ({
-          set: vi.fn(),
-          get: vi.fn().mockReturnValue(null),
-      })),
-  };
-});
-
-// Mock path module
-vi.mock("path", async () => {
-  const actual = await vi.importActual("path");
-  return {
-      ...actual,
-      join: vi.fn().mockImplementation((...args) => args.join("/")),
-  };
-});
-
-// Mock the ICacheManager
-export const mockCacheManager = {
-  get: vi.fn().mockResolvedValue(null),
-  set: vi.fn(),
-  delete: vi.fn(),
-};
-
-export const testnet = "https://testnet.toncenter.com/api/v2/jsonRPC";
-
-const NFT_AUCTION_CONTRACT_ADDRESS = "kQC_fD_gbAgXsuizLU-5usV4sIuRhotmM3DYIUSkBpFYXwAR";
+import { describe, it, expect } from "bun:test";
+import auctionInteractionAction from "../actions/auctionInteraction";
 
 describe("Auction Interaction Action", () => {
-    let auctionAction: AuctionInteractionAction;
-    let walletProvider: WalletProvider;
-    let keypair: KeyPair;
-    let mockedRuntime;
-
-    beforeAll(async () => {
-        const password = "";
-        const privateKey = process.env.TON_PRIVATE_KEY;
-        if (!privateKey) {
-            throw new Error(`TON_PRIVATE_KEY is missing`);
-        }
-    
-        const mnemonics = privateKey.split(" ");
-        if (mnemonics.length < 2) {
-            throw new Error(`TON_PRIVATE_KEY mnemonic seems invalid`);
-        }
-        keypair = await mnemonicToPrivateKey(mnemonics, password);
-
-        walletProvider = new WalletProvider(keypair, testnet, mockCacheManager);
-        mockedRuntime = {
-            character: defaultCharacter,
-        };
-        auctionAction = new AuctionInteractionAction(walletProvider);
+    it("should have correct metadata", () => {
+        expect(auctionInteractionAction.name).toBe("INTERACT_AUCTION");
+        expect(auctionInteractionAction.description).toBe(
+            "Interacts with an auction contract. Supports actions: getSaleData, bid, stop, and cancel."
+        );
+        expect(auctionInteractionAction.similes).toContain("AUCTION_INTERACT");
+        expect(auctionInteractionAction.similes).toContain("AUCTION_ACTION");
     });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mockCacheManager.get.mockResolvedValue(null);
+    it("should have validate function", () => {
+        expect(typeof auctionInteractionAction.validate).toBe("function");
     });
 
-    afterEach(() => {
-        vi.clearAllTimers();
+    it("should have handler function", () => {
+        expect(typeof auctionInteractionAction.handler).toBe("function");
     });
 
+    it("should have examples", () => {
+        expect(Array.isArray(auctionInteractionAction.examples)).toBe(true);
+        expect(auctionInteractionAction.examples.length).toBeGreaterThan(0);
 
-  it("should log result for getSaleData", async () => {
-    try {
-      const result = await auctionAction.getAuctionData(NFT_AUCTION_CONTRACT_ADDRESS);
-      console.log("Direct getSaleData result:", result);
-    } catch (error: any) {
-      console.log("Direct getSaleData error:", error.message);
-    }
-  });
+        // Check first example structure
+        const firstExample = auctionInteractionAction.examples[0];
+        expect(Array.isArray(firstExample)).toBe(true);
+        expect(firstExample.length).toBeGreaterThan(0);
+        expect(firstExample[0]).toHaveProperty("user");
+        expect(firstExample[0]).toHaveProperty("content");
+    });
 
-  it("should log result for bid", async () => {
-    try {
-      const result = await auctionAction.bid(
-        NFT_AUCTION_CONTRACT_ADDRESS,
-        "2"
-      );
-      console.log("Direct bid result:", result);
-    } catch (error: any) {
-      console.log("Direct bid error:", error);
-    }
-  });
-
-  it("should log result for stop", async () => {
-    try {
-      const result = await auctionAction.stop(NFT_AUCTION_CONTRACT_ADDRESS);
-      console.log("Direct stop result:", result);
-    } catch (error: any) {
-      console.log("Direct stop error:", error);
-    }
-  });
-
-  it("should log result for cancel", async () => {
-    try {
-      const result = await auctionAction.cancel(NFT_AUCTION_CONTRACT_ADDRESS);
-      console.log("Direct cancel result:", result);
-    } catch (error: any) {
-      console.log("Direct cancel error:", error.message);
-    }
-  });
-}); 
+    it("should have correct template format", () => {
+        const template = auctionInteractionAction.template;
+        expect(template).toContain("{{recentMessages}}");
+        expect(template).toContain("<values>");
+        expect(template).toContain("</values>");
+    });
+});

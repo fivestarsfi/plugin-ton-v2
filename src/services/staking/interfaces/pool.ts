@@ -3,7 +3,7 @@ import { Address } from "@ton/ton";
 export type PoolMemberList = PoolMemberData[];
 
 export interface PoolMemberData {
-    address: Address;      
+    address: Address;
     profit_per_coin: bigint;
     balance: bigint;
     pending_withdraw: bigint;

@@ -1,15 +1,14 @@
 import {
     elizaLogger,
-    composeContext,
+    composePromptFromState,
+    parseKeyValueXml,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
+    ModelType,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
-import { z } from "zod";
 import {
     initTonConnectProvider,
     TonConnectProvider,
@@ -47,34 +46,11 @@ function isTonConnectSendTransactionContent(
     );
 }
 
-const tonConnectSendTransactionTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
-
-Example response:
-\`\`\`json
-{
-    "validUntil": 1234567890,
-    "network": "MAINNET",
-    "from": "0:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-    "messages": [
-        {
-            "address": "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
-            "amount": "1000000000",
-            "stateInit": "te6cckEBAQEAAgAAAEysuc0=",
-            "payload": "te6cckEBAQEAAgAAAEysuc0="
-        },
-        {
-            "address": "EQDmnxDMhId6v1Ofg_h5KR5coWlFG6e86Ro3pc7Tq4CA0-Jn",
-            "amount": "2000000000",
-            "stateInit": null,
-            "payload": null
-        }
-    ]
-}
-\`\`\`
+const tonConnectSendTransactionTemplate = `Extract the transaction information from the conversation.
 
 {{recentMessages}}
 
-Given the recent messages, extract the following information about the requested transaction:
+Extract the following information about the requested transaction:
 - List of messages with recipient addresses and amounts
 - Convert all amounts to nanotons (1 TON = 1,000,000,000 nanotons)
 - Optional stateInit (base64 encoded contract code)
@@ -83,7 +59,20 @@ Given the recent messages, extract the following information about the requested
 - Optional from address
 - Optional validUntil timestamp (in unix seconds)
 
-Respond with a JSON markdown block containing only the extracted values.`;
+Respond with the extracted values in this XML format:
+<values>
+<validUntil>UNIX_TIMESTAMP_OR_EMPTY</validUntil>
+<network>MAINNET_OR_TESTNET_OR_EMPTY</network>
+<from>FROM_ADDRESS_OR_EMPTY</from>
+<messages>
+<message>
+<address>RECIPIENT_ADDRESS</address>
+<amount>AMOUNT_IN_NANOTONS</amount>
+<stateInit>BASE64_ENCODED_OR_EMPTY</stateInit>
+<payload>BASE64_ENCODED_OR_EMPTY</payload>
+</message>
+</messages>
+</values>`;
 
 export class TonConnectSendTransactionAction {
     async sendTransaction(
@@ -113,7 +102,9 @@ export class TonConnectSendTransactionAction {
                     "You rejected the transaction. Please confirm it to send to the blockchain"
                 );
             }
-            throw new Error(`Unknown error happened: ${error.message}`);
+            throw new Error(
+                `Unknown error happened: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     }
 }
@@ -126,37 +117,48 @@ const buildTonConnectSendTransactionDetails = async (
     let currentState = state;
     if (!currentState) {
         currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
     }
 
-    const transactionSchema = z.object({
-        validUntil: z.number().optional(),
-        network: z.enum(["MAINNET", "TESTNET"]).optional(),
-        from: z.string().optional(),
-        messages: z.array(
-            z.object({
-                address: z.string(),
-                amount: z.string(),
-                stateInit: z.string().optional(),
-                payload: z.string().optional(),
-            })
-        ),
+    const transactionContext = tonConnectSendTransactionTemplate.replace(
+        "{{currentState}}",
+        JSON.stringify(currentState)
+    );
+
+    const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt: transactionContext,
+        temperature: 0.7,
     });
 
-    const transactionContext = composeContext({
-        state,
-        template: tonConnectSendTransactionTemplate,
-    });
+    const parsedResponse = parseKeyValueXml(response as string);
 
-    const content = await generateObject({
-        runtime,
-        context: transactionContext,
-        schema: transactionSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    // Parse messages array from XML response
+    const messages = [];
+    if (parsedResponse?.messages) {
+        // Handle single message or array of messages
+        const messageList = Array.isArray(parsedResponse?.messages?.message)
+            ? parsedResponse.messages.message
+            : [parsedResponse?.messages?.message];
 
-    return content.object as TonConnectSendTransactionContent;
+        for (const msg of messageList) {
+            if (msg && msg?.address && msg?.amount) {
+                messages.push({
+                    address: msg.address,
+                    amount: msg.amount,
+                    stateInit: msg?.stateInit || undefined,
+                    payload: msg?.payload || undefined,
+                });
+            }
+        }
+    }
+
+    return {
+        validUntil: parsedResponse?.validUntil
+            ? parseInt(parsedResponse.validUntil)
+            : undefined,
+        network: (parsedResponse?.network as CHAIN) || undefined,
+        from: parsedResponse?.from || undefined,
+        messages: messages,
+    } as TonConnectSendTransactionContent;
 };
 
 export default {
@@ -166,15 +168,15 @@ export default {
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state: State,
-        _options: Record<string, unknown>,
+        state?: State,
+        _options?: Record<string, unknown>,
         callback?: HandlerCallback
     ) => {
         elizaLogger.log("Starting SEND_TRANSACTION_TONCONNECT handler...");
 
         // exit if TONCONNECT is not used
-        if (!runtime.getSetting('TON_MANIFEST_URL')) {
-            return false
+        if (!runtime.getSetting("TON_MANIFEST_URL")) {
+            return false;
         }
 
         try {
@@ -194,7 +196,7 @@ export default {
                 await buildTonConnectSendTransactionDetails(
                     runtime,
                     message,
-                    state
+                    state || ({} as State)
                 );
 
             if (!isTonConnectSendTransactionContent(transactionDetails)) {
@@ -232,8 +234,13 @@ export default {
             console.error("Error during transaction:", error);
             if (callback) {
                 callback({
-                    text: `Error sending transaction: ${error.message}`,
-                    content: { error: error.message },
+                    text: `Error sending transaction: ${error instanceof Error ? error.message : String(error)}`,
+                    content: {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : String(error),
+                    },
                 });
             }
             return false;
@@ -247,20 +254,23 @@ export default {
         [
             {
                 user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Send 1 TON to EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4 with payload te6cckEBAQEAAgAAAEysuc0=",
                     action: "SEND_TRANSACTION_TONCONNECT",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "Processing transaction via TonConnect...",
                     action: "SEND_TRANSACTION_TONCONNECT",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "Successfully sent transaction. Transaction: c8ee4a2c1bd070005e6cd31b32270aa461c69b927c3f4c28b293c80786f78b43",
                 },

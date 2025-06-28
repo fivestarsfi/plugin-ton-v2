@@ -1,8 +1,6 @@
-import type {
-    IAgentRuntime,
-} from "@elizaos/core";
+import type { IAgentRuntime } from "@elizaos/core";
 
-import { AssetTag, StonApiClient } from '@ston-fi/api';
+import { AssetTag, StonApiClient } from "@ston-fi/api";
 import { TonClient } from "@ton/ton";
 
 import { DEX, pTON } from "@ston-fi/sdk";
@@ -18,16 +16,14 @@ const PROVIDER_CONFIG = {
         ROUTER_ADDRESS: "",
         PTON_VERSION: "v1",
         PTON_ADDRESS: "",
-
     },
     testnet: {
         ROUTER_VERSION: "v2_1",
         ROUTER_ADDRESS: "kQALh-JBBIKK7gr0o4AVf9JZnEsFndqO0qTCyT-D-yBsWk0v",
         PTON_VERSION: "v2_1",
         PTON_ADDRESS: "kQACS30DNoUQ7NfApPvzh7eBmSZ9L4ygJ-lkNWtba8TQT-Px",
-    }
-
-}
+    },
+};
 
 export interface StonAsset {
     balance?: string | undefined;
@@ -64,27 +60,60 @@ export class StonProvider {
     public PTON_ADDRESS: string;
 
     constructor(runtime: IAgentRuntime) {
-        this.client = runtime.getSetting("STON_API_BASE_URL") ? new StonApiClient({ baseURL: runtime.getSetting("STON_API_BASE_URL") }) : new StonApiClient();
+        this.client = runtime.getSetting("STON_API_BASE_URL")
+            ? new StonApiClient({
+                  baseURL: runtime.getSetting("STON_API_BASE_URL"),
+              })
+            : new StonApiClient();
         // if not given, it uses mainnet
-        this.NETWORK = runtime.getSetting("TON_RPC_URL")?.includes("testnet") ? "testnet" : "mainnet";
-        this.SWAP_WAITING_TIME = Number(runtime.getSetting("SWAP_WAITING_TIME") ?? PROVIDER_CONFIG.SWAP_WAITING_TIME);
-        this.SWAP_WAITING_STEPS = Number(runtime.getSetting("SWAP_WAITING_STEPS") ?? PROVIDER_CONFIG.SWAP_WAITING_STEPS);
-        this.TX_WAITING_TIME = Number(runtime.getSetting("TX_WAITING_TIME") ?? PROVIDER_CONFIG.TX_WAITING_TIME);
-        this.TX_WAITING_STEPS = Number(runtime.getSetting("TX_WAITING_STEPS") ?? PROVIDER_CONFIG.TX_WAITING_STEPS);
-        this.ROUTER_VERSION = runtime.getSetting("ROUTER_VERSION") ?? PROVIDER_CONFIG[this.NETWORK].ROUTER_VERSION;
-        this.ROUTER_ADDRESS = runtime.getSetting("ROUTER_ADDRESS") ?? PROVIDER_CONFIG[this.NETWORK].ROUTER_ADDRESS;
-        this.PTON_VERSION = runtime.getSetting("PTON_VERSION") ?? PROVIDER_CONFIG[this.NETWORK].PTON_VERSION;
-        this.PTON_ADDRESS = runtime.getSetting("PTON_ADDRESS") ?? PROVIDER_CONFIG[this.NETWORK].PTON_ADDRESS;
+        this.NETWORK = runtime.getSetting("TON_RPC_URL")?.includes("testnet")
+            ? "testnet"
+            : "mainnet";
+        this.SWAP_WAITING_TIME = Number(
+            runtime.getSetting("SWAP_WAITING_TIME") ??
+                PROVIDER_CONFIG.SWAP_WAITING_TIME
+        );
+        this.SWAP_WAITING_STEPS = Number(
+            runtime.getSetting("SWAP_WAITING_STEPS") ??
+                PROVIDER_CONFIG.SWAP_WAITING_STEPS
+        );
+        this.TX_WAITING_TIME = Number(
+            runtime.getSetting("TX_WAITING_TIME") ??
+                PROVIDER_CONFIG.TX_WAITING_TIME
+        );
+        this.TX_WAITING_STEPS = Number(
+            runtime.getSetting("TX_WAITING_STEPS") ??
+                PROVIDER_CONFIG.TX_WAITING_STEPS
+        );
+        this.ROUTER_VERSION =
+            runtime.getSetting("ROUTER_VERSION") ??
+            PROVIDER_CONFIG[this.NETWORK].ROUTER_VERSION;
+        this.ROUTER_ADDRESS =
+            runtime.getSetting("ROUTER_ADDRESS") ??
+            PROVIDER_CONFIG[this.NETWORK].ROUTER_ADDRESS;
+        this.PTON_VERSION =
+            runtime.getSetting("PTON_VERSION") ??
+            PROVIDER_CONFIG[this.NETWORK].PTON_VERSION;
+        this.PTON_ADDRESS =
+            runtime.getSetting("PTON_ADDRESS") ??
+            PROVIDER_CONFIG[this.NETWORK].PTON_ADDRESS;
     }
 
-    async getAsset(symbol: string, condition: string = `${AssetTag.DefaultSymbol}`) {
+    async getAsset(
+        symbol: string,
+        condition: string = `${AssetTag.DefaultSymbol}`
+    ) {
         if (this.NETWORK === "mainnet") {
             return await this.getAssetMainnet(symbol, condition);
         } else {
             return await this.getAssetTestnet(symbol);
         }
     }
-    async getAssets(from: string, to: string, condition: string = `${AssetTag.DefaultSymbol}`) {
+    async getAssets(
+        from: string,
+        to: string,
+        condition: string = `${AssetTag.DefaultSymbol}`
+    ) {
         if (this.NETWORK === "mainnet") {
             return await this.getAssetsMainnet(from, to, condition);
         } else {
@@ -92,8 +121,10 @@ export class StonProvider {
         }
     }
 
-    async getAssetMainnet(symbol: string, condition: string = `${AssetTag.DefaultSymbol}`) {
-
+    async getAssetMainnet(
+        symbol: string,
+        condition: string = `${AssetTag.DefaultSymbol}`
+    ) {
         // search assets across of all DEX assets based on search string and query condition
         const matchedInAssets = await this.client.searchAssets({
             searchString: symbol,
@@ -104,8 +135,9 @@ export class StonProvider {
             throw new Error(`Asset ${symbol} not supported`);
         }
 
-        const asset = await this.client.getAsset(matchedInAssets[0].contractAddress);
-
+        const asset = await this.client.getAsset(
+            matchedInAssets[0].contractAddress
+        );
 
         if (asset.deprecated) {
             throw new Error(`Asset ${asset.symbol} is deprecated`);
@@ -118,15 +150,25 @@ export class StonProvider {
         return asset;
     }
 
-
-    async getAssetsMainnet(from: string, to: string, condition: string = `${AssetTag.DefaultSymbol}`) {
-
+    async getAssetsMainnet(
+        from: string,
+        to: string,
+        condition: string = `${AssetTag.DefaultSymbol}`
+    ) {
         const inAsset = await this.getAssetMainnet(from, condition);
         const outAsset = await this.getAssetMainnet(to, condition);
 
         const pairs = await this.client.getSwapPairs();
-        if (!pairs.find((pair) => pair.includes(inAsset.contractAddress) && pair.includes(outAsset.contractAddress))) {
-            throw new Error(`Swap pair ${inAsset.symbol} to ${outAsset.symbol} is not supported`);
+        if (
+            !pairs.find(
+                (pair) =>
+                    pair.includes(inAsset.contractAddress) &&
+                    pair.includes(outAsset.contractAddress)
+            )
+        ) {
+            throw new Error(
+                `Swap pair ${inAsset.symbol} to ${outAsset.symbol} is not supported`
+            );
         }
 
         return [inAsset, outAsset];
@@ -142,7 +184,6 @@ export class StonProvider {
         return asset as StonAsset;
     }
 
-
     async getAssetsTestnet(from: string, to: string) {
         const inAsset = await this.getAssetTestnet(from);
         const outAsset = await this.getAssetTestnet(to);
@@ -153,22 +194,29 @@ export class StonProvider {
     getRouterAndProxy(client: TonClient) {
         let router, proxyTON;
         if (this.ROUTER_VERSION === "v1") {
-            router = client.open(new DEX[this.ROUTER_VERSION].Router());
+            router = client.open(
+                new (DEX as any)[this.ROUTER_VERSION].Router()
+            );
         } else {
-            router = client.open(DEX[this.ROUTER_VERSION].Router.create(this.ROUTER_ADDRESS));
+            router = client.open(
+                (DEX as any)[this.ROUTER_VERSION].Router.create(
+                    this.ROUTER_ADDRESS
+                )
+            );
         }
         if (this.PTON_VERSION === "v1") {
-            proxyTON = new pTON[this.PTON_VERSION]();
+            proxyTON = new (pTON as any)[this.PTON_VERSION]();
         } else {
-            proxyTON = pTON[this.PTON_VERSION].create(this.PTON_ADDRESS);
+            proxyTON = (pTON as any)[this.PTON_VERSION].create(
+                this.PTON_ADDRESS
+            );
         }
         return [router, proxyTON];
     }
 }
 
-
-export async function initStonProvider(runtime: IAgentRuntime): Promise<StonProvider> {
+export async function initStonProvider(
+    runtime: IAgentRuntime
+): Promise<StonProvider> {
     return new StonProvider(runtime);
-};
-
-
+}

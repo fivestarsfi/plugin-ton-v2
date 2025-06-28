@@ -1,20 +1,10 @@
-import type {
-    IAgentRuntime,
-    ICacheManager,
-    Memory,
-    Provider,
-    State,
-} from "@elizaos/core";
+import type { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 
 import { TonClient, WalletContractV4 } from "@ton/ton";
-import {
-    type KeyPair,
-    mnemonicToWalletKey,
-    mnemonicNew
-} from "@ton/crypto";
+import { type KeyPair, mnemonicToWalletKey, mnemonicNew } from "@ton/crypto";
 
 import NodeCache from "node-cache";
-import * as path from "node:path";  // Changed to use node: protocol
+import * as path from "node:path"; // Changed to use node: protocol
 import BigNumber from "bignumber.js";
 import { CONFIG_KEYS } from "../enviroment";
 
@@ -24,7 +14,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 
 const PROVIDER_CONFIG = {
-    MAINNET_RPC: process.env.TON_RPC_URL ?? "https://toncenter.com/api/v2/jsonRPC",
+    MAINNET_RPC:
+        process.env.TON_RPC_URL ?? "https://toncenter.com/api/v2/jsonRPC",
     RPC_API_KEY: process.env.TON_RPC_API_KEY ?? "",
     STONFI_TON_USD_POOL: "EQCGScrZe1xbyWqWDvdI6mzP-GAcAWFv6ZXuaJOuSqemxku4",
     CHAIN_NAME_IN_DEXSCREENER: "ton",
@@ -47,20 +38,20 @@ interface Prices {
 // Helper functions to encrypt and decrypt text using AES-256-CBC:
 function encrypt(text: string, password: string): string {
     const iv = crypto.randomBytes(16);
-    const key = crypto.scryptSync(password, 'salt', 32);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted;
+    const key = crypto.scryptSync(password, "salt", 32);
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let encrypted = cipher.update(text, "utf8", "hex");
+    encrypted += cipher.final("hex");
+    return iv.toString("hex") + ":" + encrypted;
 }
 
 function decrypt(encrypted: string, password: string): string {
-    const [ivHex, encryptedText] = encrypted.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const key = crypto.scryptSync(password, 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
+    const [ivHex, encryptedText] = encrypted.split(":");
+    const iv = Buffer.from(ivHex, "hex");
+    const key = crypto.scryptSync(password, "salt", 32);
+    const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+    let decrypted = decipher.update(encryptedText, "hex", "utf8");
+    decrypted += decipher.final("utf8");
     return decrypted;
 }
 
@@ -75,7 +66,7 @@ export class WalletProvider {
         // mnemonic: string,
         keypair: KeyPair,
         private endpoint: string,
-        private cacheManager: ICacheManager,
+        private cacheManager: any
     ) {
         this.keypair = keypair;
         this.cache = new NodeCache({ stdTTL: 300 });
@@ -83,14 +74,15 @@ export class WalletProvider {
             workchain: 0,
             publicKey: keypair.publicKey,
         });
-        this.rpcApiKey = process.env.TON_RPC_API_KEY || PROVIDER_CONFIG.RPC_API_KEY;
+        this.rpcApiKey =
+            process.env.TON_RPC_API_KEY || PROVIDER_CONFIG.RPC_API_KEY;
     }
 
     // thanks to plugin-sui
     private async readFromCache<T>(key: string): Promise<T | null> {
-        const cached = await this.cacheManager.get<T>(
-            path.join(this.cacheKey, key),
-        );
+        const cached = (await this.cacheManager.get(
+            path.join(this.cacheKey, key)
+        )) as T;
         return cached;
     }
 
@@ -127,18 +119,18 @@ export class WalletProvider {
     }
 
     private async fetchPricesWithRetry() {
-        let lastError: Error;
+        let lastError: Error = new Error("All retry attempts failed");
 
         for (let i = 0; i < PROVIDER_CONFIG.MAX_RETRIES; i++) {
             try {
                 const response = await fetch(
-                    `https://api.dexscreener.com/latest/dex/pairs/${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER}/${PROVIDER_CONFIG.STONFI_TON_USD_POOL}`,
+                    `https://api.dexscreener.com/latest/dex/pairs/${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER}/${PROVIDER_CONFIG.STONFI_TON_USD_POOL}`
                 );
 
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(
-                        `HTTP error! status: ${response.status}, message: ${errorText}`,
+                        `HTTP error! status: ${response.status}, message: ${errorText}`
                     );
                 }
 
@@ -146,9 +138,10 @@ export class WalletProvider {
                 return data;
             } catch (error) {
                 console.error(`Attempt ${i + 1} failed:`, error);
-                lastError = error;
+                lastError =
+                    error instanceof Error ? error : new Error(String(error));
                 if (i < PROVIDER_CONFIG.MAX_RETRIES - 1) {
-                    const delay = PROVIDER_CONFIG.RETRY_DELAY * (2 ** i);  // Changed Math.pow to ** operator
+                    const delay = PROVIDER_CONFIG.RETRY_DELAY * 2 ** i; // Changed Math.pow to ** operator
                     await new Promise((resolve) => setTimeout(resolve, delay));
                     // Removed unnecessary continue
                 }
@@ -157,7 +150,7 @@ export class WalletProvider {
 
         console.error(
             "All attempts failed. Throwing the last error:",
-            lastError,
+            lastError
         );
         throw lastError;
     }
@@ -177,13 +170,19 @@ export class WalletProvider {
                 (error) => {
                     console.error(
                         `Error fetching ${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER.toUpperCase()} price:`,
-                        error,
+                        error
                     );
                     throw error;
-                },
+                }
             );
             const prices: Prices = {
-                nativeToken: { usd: new BigNumber(priceData.pair.priceUsd).dividedBy(new BigNumber(priceData.pair.priceNative)) },
+                nativeToken: {
+                    usd: new BigNumber(
+                        (priceData as any).pair.priceUsd
+                    ).dividedBy(
+                        new BigNumber((priceData as any).pair.priceNative)
+                    ),
+                },
             };
             this.setCachedData(cacheKey, prices);
             return prices;
@@ -195,14 +194,14 @@ export class WalletProvider {
 
     private formatPortfolio(
         runtime: IAgentRuntime,
-        portfolio: WalletPortfolio,
+        portfolio: WalletPortfolio
     ): string {
         let output = `${runtime.character.name}\n`;
         output += `Wallet Address: ${this.getAddress()}\n`;
 
         const totalUsdFormatted = new BigNumber(portfolio.totalUsd).toFixed(2);
         const totalNativeTokenFormatted = new BigNumber(
-            portfolio.totalNativeToken,
+            portfolio.totalNativeToken
         ).toFixed(4);
 
         output += `Total Value: $${totalUsdFormatted} (${totalNativeTokenFormatted} ${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER.toUpperCase()})\n`;
@@ -225,7 +224,7 @@ export class WalletProvider {
             const prices = await this.fetchPrices().catch((error) => {
                 console.error(
                     `Error fetching ${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER.toUpperCase()} price:`,
-                    error,
+                    error
                 );
                 throw error;
             });
@@ -233,17 +232,17 @@ export class WalletProvider {
                 (error) => {
                     console.error(
                         `Error fetching ${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER.toUpperCase()} amount:`,
-                        error,
+                        error
                     );
                     throw error;
-                },
+                }
             );
 
             const amount =
                 Number(nativeTokenBalance) /
                 Number(PROVIDER_CONFIG.TON_DECIMAL);
             const totalUsd = new BigNumber(amount.toString()).times(
-                prices.nativeToken.usd,
+                prices.nativeToken.usd
             );
 
             const portfolio = {
@@ -303,10 +302,18 @@ export class WalletProvider {
      * Additionally, the wallet's keypair is exported as an encrypted backup
      * using the provided password, and stored in a file.
      */
-    static async generateNew(rpcUrl: string, password: string, cacheManager: ICacheManager): Promise<{ walletProvider: WalletProvider; mnemonic: string[] }> {
+    static async generateNew(
+        rpcUrl: string,
+        password: string,
+        cacheManager: any
+    ): Promise<{ walletProvider: WalletProvider; mnemonic: string[] }> {
         const mnemonic = await mnemonicNew(24, password);
         const keypair = await mnemonicToWalletKey(mnemonic, password);
-        const walletProvider = new WalletProvider(keypair, rpcUrl, cacheManager);
+        const walletProvider = new WalletProvider(
+            keypair,
+            rpcUrl,
+            cacheManager
+        );
 
         // Export the wallet keys as encrypted JSON string using the provided password
         const encryptedKeyBackup = await walletProvider.exportWallet(password);
@@ -330,7 +337,11 @@ export class WalletProvider {
      * Imports a wallet from an encrypted backup file.
      * Reads the backup file content, decrypts it using the provided password, and returns a WalletProvider instance.
      */
-    static async importWalletFromFile(runtime: IAgentRuntime, walletAddress: string, password: string): Promise<WalletProvider> {
+    static async importWalletFromFile(
+        runtime: IAgentRuntime,
+        walletAddress: string,
+        password: string
+    ): Promise<WalletProvider> {
         // Define a backup directory and file name
         const backupDir = path.join(process.cwd(), "ton_wallet_backups");
         if (!fs.existsSync(backupDir)) {
@@ -340,10 +351,16 @@ export class WalletProvider {
         const filePath = path.join(backupDir, fileName);
 
         if (!fs.existsSync(filePath)) {
-            throw new Error(`Wallet backup file does not exist at: ${filePath}`);
+            throw new Error(
+                `Wallet backup file does not exist at: ${filePath}`
+            );
         }
         const encryptedData = fs.readFileSync(filePath, { encoding: "utf-8" });
-        const walletProvider = await WalletProvider.importWallet(encryptedData, password, runtime);
+        const walletProvider = await WalletProvider.importWallet(
+            encryptedData,
+            password,
+            runtime
+        );
         return walletProvider;
     }
 
@@ -353,8 +370,8 @@ export class WalletProvider {
     async exportWallet(password: string): Promise<string> {
         // Serialize the keypair (private keys should never be logged or shown directly)
         const keyData = JSON.stringify({
-            publicKey: Buffer.from(this.keypair.publicKey).toString('hex'),
-            secretKey: Buffer.from(this.keypair.secretKey).toString('hex'),
+            publicKey: Buffer.from(this.keypair.publicKey).toString("hex"),
+            secretKey: Buffer.from(this.keypair.secretKey).toString("hex"),
         });
         return encrypt(keyData, password);
     }
@@ -370,13 +387,17 @@ export class WalletProvider {
         const decrypted = decrypt(encryptedData, password);
         const keyData = JSON.parse(decrypted);
         const keypair: KeyPair = {
-            publicKey: Buffer.from(keyData.publicKey, 'hex'),
-            secretKey: Buffer.from(keyData.secretKey, 'hex'),
+            publicKey: Buffer.from(keyData.publicKey, "hex"),
+            secretKey: Buffer.from(keyData.secretKey, "hex"),
         };
-        const rpcUrl = runtime.getSetting("TON_RPC_URL") || PROVIDER_CONFIG.MAINNET_RPC;
-        return new WalletProvider(keypair, rpcUrl, runtime.cacheManager);
+        const rpcUrl =
+            runtime.getSetting("TON_RPC_URL") || PROVIDER_CONFIG.MAINNET_RPC;
+        return new WalletProvider(
+            keypair,
+            rpcUrl,
+            (runtime as any).cacheManager
+        );
     }
-
 }
 
 export const initWalletProvider = async (runtime: IAgentRuntime) => {
@@ -388,36 +409,40 @@ export const initWalletProvider = async (runtime: IAgentRuntime) => {
 
     const mnemonics = privateKey.split(" ");
     if (mnemonics.length < 2) {
-        throw new Error(`${CONFIG_KEYS.TON_PRIVATE_KEY} mnemonic seems invalid`);
+        throw new Error(
+            `${CONFIG_KEYS.TON_PRIVATE_KEY} mnemonic seems invalid`
+        );
     }
 
     const rpcUrl =
         runtime.getSetting("TON_RPC_URL") || PROVIDER_CONFIG.MAINNET_RPC;
 
     const keypair = await mnemonicToWalletKey(mnemonics);
-    return new WalletProvider(keypair, rpcUrl, runtime.cacheManager);
+    return new WalletProvider(keypair, rpcUrl, (runtime as any).cacheManager);
 };
 
 export const nativeWalletProvider: Provider = {
+    name: "nativeWalletProvider",
+    description: "Provides TON wallet balance and portfolio information",
     async get(
         runtime: IAgentRuntime,
         // eslint-disable-next-line
         _message: Memory,
         // eslint-disable-next-line
-        _state?: State,
-    ): Promise<string | null> {
+        _state: State
+    ): Promise<{ text: string }> {
         try {
             const walletProvider = await initWalletProvider(runtime);
             const formattedPortfolio =
                 await walletProvider.getFormattedPortfolio(runtime);
             console.log(formattedPortfolio);
-            return formattedPortfolio;
+            return { text: formattedPortfolio || "" };
         } catch (error) {
             console.error(
                 `Error in ${PROVIDER_CONFIG.CHAIN_NAME_IN_DEXSCREENER.toUpperCase()} wallet provider:`,
-                error,
+                error
             );
-            return null;
+            return { text: "" };
         }
     },
 };

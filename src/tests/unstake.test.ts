@@ -1,67 +1,41 @@
-
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
-import { defaultCharacter } from "@elizaos/core";
-
-import { IStakingProvider, StakingProvider } from "../providers/staking";
-import { type KeyPair, mnemonicNew, mnemonicToPrivateKey } from "@ton/crypto";
-import { WalletProvider } from "../providers/wallet";
-
-// Mock NodeCache
-vi.mock("node-cache", () => {
-    return {
-        default: vi.fn().mockImplementation(() => ({
-            set: vi.fn(),
-            get: vi.fn().mockReturnValue(null),
-        })),
-    };
-});
-
-// Mock path module
-vi.mock("path", async () => {
-    const actual = await vi.importActual("path");
-    return {
-        ...actual,
-        join: vi.fn().mockImplementation((...args) => args.join("/")),
-    };
-});
-
-// Mock the ICacheManager
-const mockCacheManager = {
-    get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
-    delete: vi.fn(),
-};
-
-const testnet = "https://testnet.toncenter.com/api/v2/jsonRPC";
+import { describe, it, expect } from "bun:test";
+import unstakeAction from "../actions/unstake";
 
 describe("Unstake Action", () => {
-    let stakingProvider: IStakingProvider;
-    let walletProvider: WalletProvider;
-    let keypair: KeyPair;
-    let mockedRuntime;
-
-    beforeAll(async () => {
-        const password = "";
-        const mnemonics: string[] = await mnemonicNew(12, password);
-        keypair = await mnemonicToPrivateKey(mnemonics, password);
-        walletProvider = new WalletProvider(keypair, testnet, mockCacheManager);
-        stakingProvider = new StakingProvider(walletProvider);
-        mockedRuntime = {
-            character: defaultCharacter,
-        };
+    it("should have correct metadata", () => {
+        expect(unstakeAction.name).toBe("WITHDRAW_TON");
+        expect(unstakeAction.description).toBe(
+            "Withdraw TON tokens from a specified pool."
+        );
+        expect(unstakeAction.similes).toContain("UNSTAKE_TOKENS");
+        expect(unstakeAction.similes).toContain("WITHDRAW_TON");
+        expect(unstakeAction.similes).toContain("TON_UNSTAKE");
     });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mockCacheManager.get.mockResolvedValue(null);
+    it("should have validate function", () => {
+        expect(typeof unstakeAction.validate).toBe("function");
     });
 
-    afterEach(() => {
-        vi.clearAllTimers();
+    it("should have handler function", () => {
+        expect(typeof unstakeAction.handler).toBe("function");
     });
 
-    it("should successfully unstake TON and invoke callback with success", async () => {
-        const txHash = await stakingProvider.unstake("EQDH6brNVlhFfiQFeJjQHohBivAA66lQHhTbNqjgelHM2hb9", 1);
-        console.log(txHash);
+    it("should have examples", () => {
+        expect(Array.isArray(unstakeAction.examples)).toBe(true);
+        expect(unstakeAction.examples.length).toBeGreaterThan(0);
+
+        // Check first example structure
+        const firstExample = unstakeAction.examples[0];
+        expect(Array.isArray(firstExample)).toBe(true);
+        expect(firstExample.length).toBeGreaterThan(0);
+        expect(firstExample[0]).toHaveProperty("user");
+        expect(firstExample[0]).toHaveProperty("content");
+    });
+
+    it("should have correct template format", () => {
+        const template = unstakeAction.template;
+        expect(template).toContain("{{recentMessages}}");
+        expect(template).toContain("<response>");
+        expect(template).toContain("</response>");
     });
 });

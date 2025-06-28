@@ -46,11 +46,13 @@ A concise title summarizing the issue.
 Provide a detailed explanation of the bug. What is happening, and what should happen instead?
 
 **Steps to Reproduce:**
+
 1. Step 1 – Describe the initial condition
 2. Step 2 – Outline actions taken to trigger the bug
 3. Step 3 – Expected vs. actual behavior
 
 **Environment:**
+
 - Operating System: [e.g., Windows, macOS, Linux]
 - Browser: [Chrome, Safari etc]
 - Package manager: [npm, yarn eth]
@@ -77,8 +79,9 @@ If you have an idea of how this could be fixed, provide a brief suggestion.
 ---
 
 ### Submission Deadline
+
 28th March 2025
 
 🔗 **Submit your bug reports here:** [GitHub Issues](https://github.com/elizaos-plugins/plugin-ton/issues)
 
-📢 **Join us in shaping the future of AI & Web3 on TON!** 🚀✨  
+📢 **Join us in shaping the future of AI & Web3 on TON!** 🚀✨
