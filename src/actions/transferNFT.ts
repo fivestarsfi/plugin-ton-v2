@@ -5,10 +5,12 @@ import {
   type State,
   type HandlerCallback,
   type Content,
-  composeContext,
-  generateObject,
-  ModelClass,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { Address, beginCell, Cell, internal, toNano } from "@ton/ton";
 import { z } from "zod";
 import { initWalletProvider, type WalletProvider } from "../providers/wallet";
@@ -145,26 +147,24 @@ const buildTransferNFTContent = async (
 
     // Initialize or update state
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
     // Compose transfer context
-    const transferContext = composeContext({
+    const prompt = composePromptFromState({
         state,
         template: transferNFTTemplate,
     });
 
     // Generate transfer content with the schema
-    const content = await generateObject({
-        runtime,
-        context: transferContext,
-        schema: transferNFTSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
 
+const content = parseKeyValueXml(result);
     let transferContent: TransferNFTContent = content.object as TransferNFTContent;
 
     if (transferContent === undefined) {

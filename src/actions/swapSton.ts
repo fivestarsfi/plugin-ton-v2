@@ -1,17 +1,18 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
     type ActionExample,
-    type Action,
-    generateTrueOrFalse,
+    type Action
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import { sleep } from "../utils/util";
 import {
@@ -257,26 +258,24 @@ const buildSwapDetails = async (
 ): Promise<ISwapContent> => {
 
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
     // Compose swap context
-    const swapContext = composeContext({
+    const prompt = composePromptFromState({
         state: currentState,
         template: swapTemplate,
     });
 
     // Generate swap content with the schema
-    const content = await generateObject({
-        runtime,
-        context: swapContext,
-        schema: swapSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
 
+    const content = parseKeyValueXml(result);
     let swapContent: ISwapContent = content.object as ISwapContent;
 
     if (swapContent === undefined) {
@@ -293,11 +292,11 @@ const buildFinishSwapDetails = async (
 ): Promise<boolean> => {
 
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
     // Compose swap context
     const swapIsToBeFinished = composeContext({

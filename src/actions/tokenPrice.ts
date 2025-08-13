@@ -7,6 +7,11 @@ import {
   type State,
   Action,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { TonTokenPriceProvider } from "../providers/tokenProvider.ts";
 
 export interface PriceContent extends Content {

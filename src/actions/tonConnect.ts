@@ -1,13 +1,16 @@
 import {
     Action,
     elizaLogger,
-    GoalStatus,
     HandlerCallback,
     IAgentRuntime,
     Memory,
     State,
   } from "@elizaos/core";
-
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
   import {
     initTonConnectProvider,
     tonConnectProvider as connectStatusProvider,

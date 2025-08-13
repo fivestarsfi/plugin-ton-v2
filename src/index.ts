@@ -27,7 +27,7 @@ import { tonTokenPriceProvider } from "./providers/tokenProvider.ts";
 import jettonInteractionAction from "./actions/jettonInteraction.ts";
 export { tokenPriceAction as GetTokenPrice };
 import { StakingProvider, nativeStakingProvider } from "./providers/staking.ts";
-import swapStonAction from "./actions/swapSton.ts";
+import { swapStonAction } from "./actions/swapSton.ts";
 import queryStonAssetAction from "./actions/queryStonAsset.ts";
 import dexAction from "./actions/dex.ts";
 

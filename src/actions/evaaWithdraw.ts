@@ -4,11 +4,13 @@ import {
     type IAgentRuntime,
     type Memory,
     type State,
-    elizaLogger,
-    ModelClass,
-    generateObject,
-    composeContext
+    elizaLogger
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { sleep, convertToBigInt } from "../utils/util";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
@@ -407,17 +409,16 @@ const withdrawAction: Action = {
 
         try {
             // Compose context to extract withdrawal parameters
-            const withdrawContext = composeContext({
+            const prompt = composePromptFromState({
                 state,
                 template: withdrawTemplate
             });
 
-            const content = await generateObject({
-                runtime,
-                context: withdrawContext,
-                schema: withdrawSchema,
-                modelClass: ModelClass.LARGE,
-            });
+            const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
             const withdrawDetails = content.object as WithdrawContent;
             elizaLogger.debug(`Withdraw details: ${JSON.stringify(content.object)}`);

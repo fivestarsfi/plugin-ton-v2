@@ -1,14 +1,17 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   type Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
+​
 import { z } from "zod";
 import { Address, toNano } from "@ton/ton";
 import { initWalletProvider, WalletProvider } from "../providers/wallet";
@@ -178,24 +181,23 @@ const buildMintDetails = async (
 ): Promise<MintContent> => {
   // Initialize or update state.
   let currentState = state;
-  if (!currentState) {
-    currentState = (await runtime.composeState(message)) as State;
-  } else {
-    currentState = await runtime.updateRecentMessageState(currentState);
-  }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
-  const mintContext = composeContext({
+  const prompt = composePromptFromState({
     state: currentState,
     template: mintNFTTemplate,
   });
 
   try {
-    const content = await generateObject({
-      runtime,
-      context: mintContext,
-      schema: mintNFTSchema,
-      modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
     let mintContent: MintContent = content.object as MintContent;
     if (mintContent === undefined) {

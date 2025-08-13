@@ -1,14 +1,16 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { Address, JettonMaster} from "@ton/ton";
 import { z } from "zod";
 import { initWalletProvider, WalletProvider } from "../providers/wallet";
@@ -139,18 +141,17 @@ const buildJettonInteractionData = async (
   
   // Otherwise, use the LLM to extract the parameters
   elizaLogger.debug("Extracting jetton interaction parameters using LLM");
-  const context = composeContext({
-    state,
-    template: jettonInteractionTemplate,
-  });
+  const prompt = composePromptFromState({
+  state,
+  template: jettonInteractionTemplate,
+});
   
   try {
-    const content = await generateObject({
-      runtime,
-      context,
-      schema: jettonInteractionSchema as any,
-      modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
     
     elizaLogger.debug("Generated jetton interaction content", content.object);
     return content.object as any;

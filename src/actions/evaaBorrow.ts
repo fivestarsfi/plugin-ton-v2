@@ -5,10 +5,12 @@ import {
     type Memory,
     type State,
     elizaLogger,
-    ModelClass,
-    composeContext,
-    generateObject
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { sleep, convertToBigInt } from "../utils/util";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
@@ -486,17 +488,16 @@ const borrowAction: Action = {
 
         try {
             // Compose context to extract borrowing parameters
-            const borrowContext = composeContext({
+            const prompt = composePromptFromState({
                 state,
                 template: borrowTemplate
             });
 
-            const content = await generateObject({
-                runtime,
-                context: borrowContext,
-                schema: borrowSchema,
-                modelClass: ModelClass.LARGE,
-            });
+            const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+            const content = parseKeyValueXml(result);
 
             const borrowDetails = content.object as BorrowContent;
             elizaLogger.debug(`Borrow details: ${JSON.stringify(content.object)}`);

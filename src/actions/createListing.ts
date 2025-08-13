@@ -1,14 +1,16 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { Address, internal, SendMode, toNano } from "@ton/ton";
 import { z } from "zod";
 import { initWalletProvider, WalletProvider } from "../providers/wallet";
@@ -77,16 +79,15 @@ const buildCreateListingData = async (
   message: Memory,
   state: State
 ): Promise<CreateListingContent> => {
-  const context = composeContext({
-    state,
-    template: createListingTemplate,
+  const prompt = composePromptFromState({
+  state,
+  template: createListingTemplate,
   });
-  const content = await generateObject({
-    runtime,
-    context,
-    schema: createListingSchema as any,
-    modelClass: ModelClass.SMALL,
-  });
+  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
   return content.object as any;
 };
 

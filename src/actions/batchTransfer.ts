@@ -1,8 +1,8 @@
 import {
     elizaLogger,
-    composeContext,
-    generateObject,
-    ModelClass,
+    composePromptFromState,
+    parseKeyValueXml,
+    ModelType, // Note: ModelType replaces ModelClass
     type IAgentRuntime,
     type Memory,
     type State,
@@ -433,26 +433,24 @@ import {
   
       // Initialize or update state
       let currentState = state;
-      if (!currentState) {
-          currentState = (await runtime.composeState(message)) as State;
-      } else {
-          currentState = await runtime.updateRecentMessageState(currentState);
-      }
-  
+        if (!currentState) {
+          currentState = await runtime.composeState(message);
+        } else {
+          currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+        }
   
       // Compose transfer context
-      const batchTransferContext = composeContext({
+      const prompt = composePromptFromState({
           state,
           template: batchTransferTemplate,
       });
   
       // Generate transfer content with the schema
-      const content = await generateObject({
-          runtime,
-          context: batchTransferContext,
-          schema: batchTransferSchema,
-          modelClass: ModelClass.SMALL,
-      });
+      const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
   
       let batchTransferContent: BatchTransferContent = content.object as BatchTransferContent;
   

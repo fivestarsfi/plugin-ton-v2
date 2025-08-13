@@ -1,14 +1,16 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import { initStakingProvider, IStakingProvider } from "../providers/staking";
 
@@ -67,17 +69,16 @@ const buildPoolInfoDetails = async (
         poolId: z.string(),
     });
 
-    const poolInfoContext = composeContext({
+    const prompt = composePromptFromState({
         state,
         template: getPoolInfoTemplate,
     });
 
-    const content = await generateObject({
-        runtime,
-        context: poolInfoContext,
-        schema: poolInfoSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
     return content.object as PoolInfoContent;
 };

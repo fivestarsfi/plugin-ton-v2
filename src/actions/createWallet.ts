@@ -4,11 +4,13 @@ import {
     type Memory,
     type State,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
-    Content,
-    composeContext,
+    Content
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { WalletProvider } from "../providers/wallet";
 import { z } from "zod";
 
@@ -51,17 +53,17 @@ export const passwordSchema = z.object({
     const currentState = state || (await runtime.composeState(message));
   
     // Compose a context to drive the object geSneration.
-    const context = composeContext({
-      state: currentState,
-      template: passwordTemplate,
-    });
+    const prompt = composePromptFromState({
+  state: currentState,
+  template: passwordTemplate,
+});
   
     // Generate an object using the defined schema.
     const result = await generateObject({
       runtime,
-      context,
+      prompt,
       schema: passwordSchema,
-      modelClass: ModelClass.SMALL,
+      modelClass: ModelType.SMALL,
     });
   
     let passwordData = result.object;

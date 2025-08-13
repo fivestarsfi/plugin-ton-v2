@@ -1,14 +1,16 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import {
   Address,
 } from "@ton/ton";
@@ -176,23 +178,22 @@ const buildGetCollectionData = async (
 ): Promise<GetCollectionDataContent> => {
   // Initialize or update state
   let currentState = state;
-  if (!currentState) {
-    currentState = (await runtime.composeState(message)) as State;
-  } else {
-    currentState = await runtime.updateRecentMessageState(currentState);
-  }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
-  const getCollectionContext = composeContext({
+  const prompt = composePromptFromState({
     state: currentState,
     template: getCollectionDataTemplate,
   });
   
-  const content = await generateObject({
-    runtime,
-    context: getCollectionContext,
-    schema: getCollectionDataSchema,
-    modelClass: ModelClass.SMALL,
-  });
+  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
   let buildGetCollectionDataContent: GetCollectionDataContent = content.object as GetCollectionDataContent;
 

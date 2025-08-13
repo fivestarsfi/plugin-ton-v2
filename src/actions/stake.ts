@@ -1,14 +1,16 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import { IStakingProvider, StakingProvider, initStakingProvider } from "../providers/staking";
 import { initWalletProvider } from "../providers/wallet";
@@ -84,18 +86,17 @@ const buildStakeDetails = async (
     });
 
     // Compose staking context
-    const stakeContext = composeContext({
+    const prompt = composePromptFromState({
         state,
         template: stakeTemplate,
     });
 
     // Generate stake content with the schema
-    const content = await generateObject({
-        runtime,
-        context: stakeContext,
-        schema: stakeSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
     return content.object as StakeContent;
 };

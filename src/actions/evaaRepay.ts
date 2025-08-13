@@ -4,11 +4,13 @@ import {
     type IAgentRuntime,
     type Memory,
     type State,
-    elizaLogger,
-    ModelClass,
-    generateObject,
-    composeContext
+    elizaLogger
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { sleep, convertToBigInt } from "../utils/util";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
@@ -397,17 +399,16 @@ const repayAction: Action = {
 
         try {
             // Compose context to extract repayment parameters
-            const repayContext = composeContext({
+            const prompt = composePromptFromState({
                 state,
                 template: repayTemplate
             });
 
-            const content = await generateObject({
-                runtime,
-                context: repayContext,
-                schema: repaySchema,
-                modelClass: ModelClass.LARGE,
-            });
+            const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
             const repayDetails = content.object as RepayContent;
             elizaLogger.debug(`Repay details: ${JSON.stringify(content.object)}`);

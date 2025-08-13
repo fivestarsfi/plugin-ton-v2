@@ -1,14 +1,16 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import {
   Address,
   internal,
@@ -67,16 +69,15 @@ const buildCancelListingData = async (
   message: Memory,
   state: State
 ): Promise<CancelListingContent> => {
-  const context = composeContext({
-    state,
-    template: cancelListingTemplate,
-  });
-  const content = await generateObject({
-    runtime,
-    context,
-    schema: cancelListingSchema as any,
-    modelClass: ModelClass.SMALL,
-  });
+  const prompt = composePromptFromState({
+  state,
+  template: cancelListingTemplate,
+});
+  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
   return content.object as any;
 };
 

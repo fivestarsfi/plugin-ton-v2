@@ -1,17 +1,18 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
     ActionExample,
-    Action,
-    generateText
+    Action
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import {
     nativeWalletProvider,
@@ -63,27 +64,26 @@ const buildQueryAssetDetails = async (
 
     const walletInfo = await nativeWalletProvider.get(runtime, message, state);
     state.walletInfo = walletInfo;
-
+    
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+      if (!currentState) {
+        currentState = await runtime.composeState(message);
+      } else {
+        currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+      }
+​
 
     // Compose swap context
-    const queryAssetContext = composeContext({
+    const prompt = composePromptFromState({
         state: currentState,
         template: queryAssetTemplate,
     });
 
-    // Generate swap content with the schema
-    const content = await generateObject({
-        runtime,
-        context: queryAssetContext,
-        schema: queryAssetSchema,
-        modelClass: ModelClass.SMALL,
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+    prompt,
     });
+
+    const content = parseKeyValueXml(result);
 
     let queryAssetContent: IQueryAssetContent = content.object as IQueryAssetContent;
 

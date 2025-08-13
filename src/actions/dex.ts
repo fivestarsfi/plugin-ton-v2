@@ -1,15 +1,14 @@
 // pool creation, liquidity provisioning, and management
 
 import {
-  composeContext,
-  Content,
+  composePromptFromState,
   elizaLogger,
-  generateObject,
   HandlerCallback,
   IAgentRuntime,
   Memory,
-  ModelClass,
+  ModelType,
   State,
+  parseKeyValueXml
 } from "@elizaos/core";
 import {
   initWalletProvider,
@@ -362,23 +361,22 @@ const buildDexActionDetails = async (
   state.walletInfo = walletInfo;
 
   let currentState = state;
-  if (!currentState) {
-    currentState = (await runtime.composeState(message)) as State;
-  } else {
-    currentState = await runtime.updateRecentMessageState(currentState);
-  }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
-  const actionContext = composeContext({
+  const prompt = composePromptFromState({
     state,
     template: dexTemplate,
   });
 
-  const content = await generateObject({
-    runtime,
-    context: actionContext,
-    schema: dexActionSchema,
-    modelClass: ModelClass.SMALL,
-  });
+  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
   return content.object as DexActionContent;
 };

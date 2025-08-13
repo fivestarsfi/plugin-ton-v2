@@ -5,10 +5,11 @@ import {
     IAgentRuntime,
     Memory,
     State,
-    generateObject,
-    composeContext,
-    ModelClass,
-    generateObjectArray
+} from '@elizaos/core';
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
 } from '@elizaos/core';
 import { Dictionary, fromNano } from '@ton/ton';
 import BigNumber from "bignumber.js";
@@ -492,17 +493,16 @@ const positionsAction: Action = {
 
         try {
             // Compose context to extract borrowing parameters
-            const positionsContext = composeContext({
+            const prompt = composePromptFromState({
                 state,
                 template: positionsTemplate
             });
 
-            const content = await generateObject({
-                runtime,
-                context: positionsContext,
-                schema: positionsSchema,
-                modelClass: ModelClass.LARGE,
-            });
+            const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
             const positionsDetails = content.object as PositionsContent;
             elizaLogger.debug(`Positions details: ${JSON.stringify(content.object)}`);

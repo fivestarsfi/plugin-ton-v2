@@ -4,11 +4,13 @@ import {
     type IAgentRuntime,
     type Memory,
     type State,
-    elizaLogger,
-    ModelClass,
-    generateObject,
-    composeContext
+    elizaLogger
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { sleep, convertToBigInt } from "../utils/util";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
@@ -490,18 +492,16 @@ const supplyAction: Action = {
 
         try {
             // Compose context to extract lending parameters
-            const supplyContext = composeContext({
+            const prompt = composePromptFromState({
                 state,
                 template: lendTemplate
             });
 
-            const content = await generateObject({
-                runtime,
-                context: supplyContext,
-                schema: supplySchema,
-                modelClass: ModelClass.LARGE,
-            });
+            const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
 
+const content = parseKeyValueXml(result);
             const supplyDetails = content.object as SupplyContent;
             elizaLogger.debug(`Supply details: ${JSON.stringify(content.object)}`);
 

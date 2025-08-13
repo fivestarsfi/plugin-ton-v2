@@ -1,14 +1,16 @@
 import {
   elizaLogger,
-  composeContext,
-  generateObject,
-  ModelClass,
   type IAgentRuntime,
   type Memory,
   type State,
   type HandlerCallback,
   Content,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { Address, beginCell, internal, toNano } from "@ton/ton";
 import { z } from "zod";
 import { initWalletProvider, WalletProvider } from "../providers/wallet";
@@ -115,17 +117,16 @@ const buildUpdateDetails = async (
   message: Memory,
   state: State
 ): Promise<UpdateNFTMetadataContent> => {
-  const updateContext = composeContext({
+  const prompt = composePromptFromState({
     state,
     template: updateNFTMetadataTemplate,
   });
 
-  const content = await generateObject({
-    runtime,
-    context: updateContext,
-    schema: updateNFTMetadataSchema,
-    modelClass: ModelClass.SMALL,
-  });
+  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+  const content = parseKeyValueXml(result);
 
   return content.object as UpdateNFTMetadataContent;
 };

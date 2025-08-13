@@ -1,14 +1,16 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import {
     initWalletProvider,
@@ -132,11 +134,11 @@ const buildTransferDetails = async (
 
     // Initialize or update state
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
     // Define the schema for the expected output
     const transferSchema = z.object({
@@ -145,18 +147,17 @@ const buildTransferDetails = async (
     });
 
     // Compose transfer context
-    const transferContext = composeContext({
+    const prompt = composePromptFromState({
         state,
         template: transferTemplate,
     });
 
     // Generate transfer content with the schema
-    const content = await generateObject({
-        runtime,
-        context: transferContext,
-        schema: transferSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
     let transferContent: TransferContent = content.object as TransferContent;
 

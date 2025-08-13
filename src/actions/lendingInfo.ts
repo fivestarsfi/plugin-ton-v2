@@ -1,14 +1,16 @@
 import {
     elizaLogger,
-    composeContext,
     type Content,
     type HandlerCallback,
-    ModelClass,
-    generateObject,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
+import {
+  composePromptFromState,
+  parseKeyValueXml,
+  ModelType, // Note: ModelType replaces ModelClass
+} from '@elizaos/core';
 import { z } from "zod";
 import { sleep, base64ToHex, formatCurrency } from "../utils/util";
 import {
@@ -170,11 +172,11 @@ const buildGetLendingInfo = async (
 ): Promise<LendingInfoContent> => {
     // Initialize or update state
     let currentState = state;
-    if (!currentState) {
-        currentState = (await runtime.composeState(message)) as State;
-    } else {
-        currentState = await runtime.updateRecentMessageState(currentState);
-    }
+if (!currentState) {
+  currentState = await runtime.composeState(message);
+} else {
+  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
+}
 
     // Define the schema for the expected output
     const getLendingInfoSchema = z.object({
@@ -182,17 +184,16 @@ const buildGetLendingInfo = async (
     });
 
     // Compose lending info getter context
-    const getLendingInfoContext = composeContext({
+    const prompt = composePromptFromState({
         state,
         template: getLendingInfoTemplate,
     });
 
-    const content = await generateObject({
-        runtime,
-        context: getLendingInfoContext,
-        schema: getLendingInfoSchema,
-        modelClass: ModelClass.SMALL,
-    });
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+  prompt,
+});
+
+const content = parseKeyValueXml(result);
 
     let getLendingInfoContent: LendingInfoContent =
         content.object as LendingInfoContent;
