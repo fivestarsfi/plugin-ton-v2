@@ -27,7 +27,7 @@ export async function getListingData(walletProvider: WalletProvider, nftAddress:
       return parseAuctionData(listingAddress, result.stack);
     }
   } catch (error) {
-    throw new Error(`Failed to get listing data: ${error}`);
+    throw new Error("Failed to get listing data");
   }
 }
 
@@ -77,7 +77,7 @@ export async function getFixedPriceData(walletProvider: WalletProvider, nftAddre
       listingAddress
     };
   } catch (error) {
-    throw new Error(`Failed to get fixed price data: ${error}`);
+    throw new Error("Failed to get fixed price data");
   }
 }
 
@@ -99,7 +99,7 @@ export async function getAuctionData(walletProvider: WalletProvider, nftAddress:
       listingAddress
     };
   } catch (error) {
-    throw new Error(`Failed to get auction data: ${error}`);
+    throw new Error("Failed to get auction data");
   }
 }
 

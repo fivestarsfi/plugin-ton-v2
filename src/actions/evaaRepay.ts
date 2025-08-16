@@ -525,7 +525,7 @@ const repayAction: Action = {
 
             const resultText =
                 typeof result === "string" ? result : (result as any).value;
-            const parsedContent = parseKeyValueXml(resultText as string);
+            const parsedContent = parseKeyValueXml(resultText);
 
             if (!parsedContent) {
                 throw new Error("Failed to parse user intent");

@@ -92,7 +92,7 @@ const buildStakeDetails = async (
     });
 
     // Parse the XML response
-    const parsedResponse = parseKeyValueXml(response as string);
+    const parsedResponse = parseKeyValueXml(response);
 
     const stakeContent: StakeContent = {
         poolId: parsedResponse?.poolId || "",

@@ -10,6 +10,16 @@ import {
     composePromptFromState,
 } from "@elizaos/core";
 import { WalletProvider, initWalletProvider } from "../providers/wallet";
+import { cacheManager } from "src/cache";
+
+interface RuntimeContext {
+  cacheManager?: CacheManager;
+}
+
+interface CacheManager {
+  get?: (key: string) => any;
+  set?: (key: string, value: any) => void;
+}
 
 export interface CreateWalletContent extends Content {
     encryptionPassword: string;
@@ -71,11 +81,9 @@ export class CreateWalletAction {
     async createWallet(
         runtime: IAgentRuntime,
         params: { rpcUrl: string; encryptionPassword: string }
-    ): Promise<{ walletAddress: string; mnemonic: string[] }> {
-        // Get cacheManager from runtime
-        const cacheManager = (runtime as any).cacheManager;
+    ): Promise<{ walletAddress: string; mnemonic: string[] }> { 
 
-        const { walletProvider, mnemonic } = await WalletProvider.generateNew(
+    const { walletProvider, mnemonic } = await WalletProvider.generateNew(
             params.rpcUrl,
             params.encryptionPassword,
             cacheManager
