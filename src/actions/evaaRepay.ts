@@ -552,7 +552,7 @@ const repayAction: Action = {
             const repayResult = await action.repay(
                 validatedContent,
                 runtime,
-                callback!
+                callback
             );
 
             if (callback) {

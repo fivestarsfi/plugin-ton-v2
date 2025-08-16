@@ -345,7 +345,7 @@ export default {
         const updateDetails = await buildUpdateDetails(
             runtime,
             message,
-            state!
+            state
         );
 
         // Validate transfer content
