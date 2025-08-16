@@ -1,31 +1,29 @@
 import {
-  elizaLogger,
-  type IAgentRuntime,
-  type Memory,
-  type State,
-  type HandlerCallback,
-  Content,
+    elizaLogger,
+    composePromptFromState,
+    parseKeyValueXml,
+    ModelType,
+    type IAgentRuntime,
+    type Memory,
+    type State,
+    type HandlerCallback,
+    Content,
 } from "@elizaos/core";
-import {
-  composePromptFromState,
-  parseKeyValueXml,
-  ModelType, // Note: ModelType replaces ModelClass
-} from '@elizaos/core';
 import { Address, internal, SendMode, toNano } from "@ton/ton";
 import { z } from "zod";
 import { initWalletProvider, WalletProvider } from "../providers/wallet";
 import { waitSeqnoContract } from "../utils/util";
 import {
-  buildNftFixPriceSaleV3R3DeploymentBody,
-  destinationAddress,
-  marketplaceAddress,
-  marketplaceFeeAddress,
+    buildNftFixPriceSaleV3R3DeploymentBody,
+    destinationAddress,
+    marketplaceAddress,
+    marketplaceFeeAddress,
 } from "../services/nft-marketplace/listingFactory";
 
 // Configuration constants
 const CONFIG = {
-  royaltyPercent: 5,
-  marketplaceFeePercent: 5,
+    royaltyPercent: 5,
+    marketplaceFeePercent: 5,
 };
 
 /**
@@ -35,192 +33,229 @@ const CONFIG = {
  * - fullPrice: The full price of the NFT in TON.
  */
 const createListingSchema = z
-  .object({
-    nftAddress: z.string().nonempty("NFT address is required"),
-    fullPrice: z.string().nonempty("Full price is required"),
-  })
-  .refine((data) => data.nftAddress && data.fullPrice, {
-    message: "NFT address and full price are required",
-    path: ["nftAddress", "fullPrice"],
-  });
+    .object({
+        nftAddress: z.string().nonempty("NFT address is required"),
+        fullPrice: z.string().nonempty("Full price is required"),
+    })
+    .refine((data) => data.nftAddress && data.fullPrice, {
+        message: "NFT address and full price are required",
+        path: ["nftAddress", "fullPrice"],
+    });
 
 export interface CreateListingContent extends Content {
-  nftAddress: string;
-  fullPrice: string;
+    nftAddress: string;
+    fullPrice: string;
 }
 
 function isCreateListingContent(
-  content: Content
+    content: Content
 ): content is CreateListingContent {
-  return (
-    typeof content.nftAddress === "string" &&
-    typeof content.fullPrice === "string"
-  );
+    return (
+        typeof content.nftAddress === "string" &&
+        typeof content.fullPrice === "string"
+    );
 }
 
-const createListingTemplate = `Respond with a JSON markdown block containing only the extracted values.
-Example response:
-\`\`\`json
-{
-  "nftAddress": "<NFT address for listing>",
-  "fullPrice": "<Full price in TON>"
-}
-\`\`\`
+const createListingTemplate = `<system>
+Analyze the conversation and extract the following information about the requested NFT listing:
+- NFT address to list for sale
+- Full price in TON
+
+Format the response as key-value pairs in XML format.
+</system>
 
 {{recentMessages}}
 
-Respond with a JSON markdown block containing only the extracted values.`;
+<message>
+Extract the NFT listing details from the conversation above.
+Respond with the following format:
+
+<nftAddress>nft_address</nftAddress>
+<fullPrice>price_in_ton</fullPrice>
+</message>`;
 
 /**
  * Helper function to build create listing parameters.
  */
 const buildCreateListingData = async (
-  runtime: IAgentRuntime,
-  message: Memory,
-  state: State
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State
 ): Promise<CreateListingContent> => {
-  const prompt = composePromptFromState({
-  state,
-  template: createListingTemplate,
-  });
-  const result = await runtime.useModel(ModelType.TEXT_SMALL, {
-  prompt,
-});
+    // Initialize or update state
+    let currentState = state;
+    if (!currentState) {
+        currentState = (await runtime.composeState(message)) as State;
+    } else {
+        currentState = await runtime.composeState(message, ["RECENT_MESSAGES"]);
+    }
 
-const content = parseKeyValueXml(result);
-  return content.object as any;
+    const prompt = composePromptFromState({
+        state: currentState,
+        template: createListingTemplate,
+    });
+
+    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt,
+    });
+
+    const parsedContent = parseKeyValueXml(
+        typeof result === "string" ? result : (result as any).value || ""
+    );
+
+    const listingContent: CreateListingContent = {
+        nftAddress: parsedContent?.nftAddress || "",
+        fullPrice: parsedContent?.fullPrice || "",
+        text: "", // Required by Content interface
+    };
+
+    // Validate with schema
+    const validatedContent = createListingSchema.parse(listingContent);
+    return validatedContent as CreateListingContent;
 };
 
 /**
  * CreateListingAction encapsulates the logic to list an NFT for sale.
  */
 export class CreateListingAction {
-  private walletProvider: WalletProvider;
-  constructor(walletProvider: WalletProvider) {
-    this.walletProvider = walletProvider;
-  }
+    private walletProvider: WalletProvider;
+    constructor(walletProvider: WalletProvider) {
+        this.walletProvider = walletProvider;
+    }
 
-  /**
-   * Lists an NFT for sale using default marketplace configuration
-   */
-  async list(params: CreateListingContent): Promise<any> {
-    const client = this.walletProvider.getWalletClient();
-    const contract = client.open(this.walletProvider.wallet);
+    /**
+     * Lists an NFT for sale using default marketplace configuration
+     */
+    async list(params: CreateListingContent): Promise<any> {
+        const client = this.walletProvider.getWalletClient();
+        const contract = client.open(this.walletProvider.wallet);
 
-    const fullPrice = toNano(params.fullPrice);
-    const royalty = CONFIG.royaltyPercent;
-    const fee = CONFIG.marketplaceFeePercent;
+        const fullPrice = toNano(params.fullPrice);
+        const royalty = CONFIG.royaltyPercent;
+        const fee = CONFIG.marketplaceFeePercent;
 
-    const saleData = {
-      nftAddress: Address.parse(params.nftAddress),
-      nftOwnerAddress: this.walletProvider.wallet.address,
-      deployerAddress: destinationAddress,
-      marketplaceAddress: marketplaceAddress,
-      marketplaceFeeAddress: marketplaceFeeAddress,
-      marketplaceFeePercent: (fullPrice / BigInt(100)) * BigInt(fee),
-      royaltyAddress: this.walletProvider.wallet.address, // Using wallet address as royalty recipient
-      royaltyPercent: (fullPrice / BigInt(100)) * BigInt(royalty),
-      fullTonPrice: fullPrice,
-    };
+        const saleData = {
+            nftAddress: Address.parse(params.nftAddress),
+            nftOwnerAddress: this.walletProvider.wallet.address,
+            deployerAddress: destinationAddress,
+            marketplaceAddress: marketplaceAddress,
+            marketplaceFeeAddress: marketplaceFeeAddress,
+            marketplaceFeePercent: (fullPrice / BigInt(100)) * BigInt(fee),
+            royaltyAddress: this.walletProvider.wallet.address, // Using wallet address as royalty recipient
+            royaltyPercent: (fullPrice / BigInt(100)) * BigInt(royalty),
+            fullTonPrice: fullPrice,
+        };
 
-    const saleBody = await buildNftFixPriceSaleV3R3DeploymentBody(saleData);
+        const saleBody = await buildNftFixPriceSaleV3R3DeploymentBody(saleData);
 
-    const seqno = await contract.getSeqno();
-    const listMessage = internal({
-      to: params.nftAddress,
-      value: toNano("0.3"), // Sufficient value for all operations
-      bounce: true,
-      body: saleBody,
-    });
+        const seqno = await contract.getSeqno();
+        const listMessage = internal({
+            to: params.nftAddress,
+            value: toNano("0.3"), // Sufficient value for all operations
+            bounce: true,
+            body: saleBody,
+        });
 
-    const transfer = await contract.sendTransfer({
-      seqno,
-      secretKey: this.walletProvider.keypair.secretKey,
-      messages: [listMessage],
-      sendMode: SendMode.IGNORE_ERRORS + SendMode.PAY_GAS_SEPARATELY,
-    });
+        const transfer = await contract.sendTransfer({
+            seqno,
+            secretKey: this.walletProvider.keypair.secretKey,
+            messages: [listMessage],
+            sendMode: SendMode.IGNORE_ERRORS + SendMode.PAY_GAS_SEPARATELY,
+        });
 
-    await waitSeqnoContract(seqno, contract);
+        await waitSeqnoContract(seqno, contract);
 
-    return {
-      nftAddress: params.nftAddress,
-      fullPrice: params.fullPrice,
-      message: "NFT listed for sale successfully",
-      marketplaceFee: `${fee}%`,
-      royaltyFee: `${royalty}%`,
-    };
-  }
+        return {
+            nftAddress: params.nftAddress,
+            fullPrice: params.fullPrice,
+            message: "NFT listed for sale successfully",
+            marketplaceFee: `${fee}%`,
+            royaltyFee: `${royalty}%`,
+        };
+    }
 }
 
 export default {
-  name: "CREATE_LISTING",
-  similes: ["NFT_LISTING", "LIST_NFT", "SELL_NFT"],
-  description:
-    "Creates a listing for an NFT by sending the appropriate message to the NFT contract. Only requires NFT address and price.",
-  handler: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    state: State,
-    options: any,
-    callback?: HandlerCallback
-  ) => {
-    elizaLogger.log("Starting CREATE_LISTING handler...");
-    const params = await buildCreateListingData(runtime, message, state);
+    name: "CREATE_LISTING",
+    similes: ["NFT_LISTING", "LIST_NFT", "SELL_NFT"],
+    description:
+        "Creates a listing for an NFT by sending the appropriate message to the NFT contract. Only requires NFT address and price.",
+    handler: async (
+        runtime: IAgentRuntime,
+        message: Memory,
+        state?: State,
+        _options?: any,
+        callback?: HandlerCallback
+    ) => {
+        elizaLogger.log("Starting CREATE_LISTING handler...");
+        const params = await buildCreateListingData(
+            runtime,
+            message,
+            state || (await runtime.composeState(message))
+        );
 
-    if (!isCreateListingContent(params)) {
-      if (callback) {
-        callback({
-          text: "Unable to process create listing request. Invalid content provided.",
-          content: { error: "Invalid create listing content" },
-        });
-      }
-      return false;
-    }
+        if (!isCreateListingContent(params)) {
+            if (callback) {
+                callback({
+                    text: "Unable to process create listing request. Invalid content provided.",
+                    content: { error: "Invalid create listing content" },
+                });
+            }
+            return false;
+        }
 
-    try {
-      const walletProvider = await initWalletProvider(runtime);
-      const createListingAction = new CreateListingAction(walletProvider);
+        try {
+            const walletProvider = await initWalletProvider(runtime);
+            const createListingAction = new CreateListingAction(walletProvider);
 
-      const result = await createListingAction.list(params);
+            const result = await createListingAction.list(params);
 
-      if (callback) {
-        callback({
-          text: JSON.stringify(result, null, 2),
-          content: result,
-        });
-      }
-    } catch (error: any) {
-      elizaLogger.error("Error in CREATE_LISTING handler:", error);
-      if (callback) {
-        callback({
-          text: `Error in CREATE_LISTING: ${error.message}`,
-          content: { error: error.message },
-        });
-      }
-    }
-    return true;
-  },
-  template: createListingTemplate,
-  // eslint-disable-next-line
-  validate: async (_runtime: IAgentRuntime) => {
-    return true;
-  },
-  examples: [
-    [
-      {
-        user: "{{user1}}",
-        content: {
-          nftAddress: "EQNftAddressExample",
-          fullPrice: "10",
-          action: "CREATE_LISTING",
-        },
-      },
-      {
-        user: "{{user1}}",
-        content: {
-          text: "NFT listed for sale successfully",
-        },
-      },
+            if (callback) {
+                callback({
+                    text: JSON.stringify(result, null, 2),
+                    content: result,
+                });
+            }
+        } catch (error) {
+            elizaLogger.error("Error in CREATE_LISTING handler:");
+            if (callback) {
+                callback({
+                    text: `Error in CREATE_LISTING: ${error instanceof Error ? error.message : String(error)}`,
+                    content: {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : String(error),
+                    },
+                });
+            }
+        }
+        return true;
+    },
+    template: createListingTemplate,
+    // eslint-disable-next-line
+    validate: async (_runtime: IAgentRuntime) => {
+        return true;
+    },
+    examples: [
+        [
+            {
+                user: "{{user1}}",
+                name: "{{user1}}",
+                content: {
+                    nftAddress: "EQNftAddressExample",
+                    fullPrice: "10",
+                    action: "CREATE_LISTING",
+                },
+            },
+            {
+                user: "assistant",
+                name: "{{agent}}",
+                content: {
+                    text: "NFT listed for sale successfully",
+                },
+            },
+        ],
     ],
-  ],
 };
+

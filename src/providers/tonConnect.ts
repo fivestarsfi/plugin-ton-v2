@@ -1,10 +1,4 @@
-import type {
-    IAgentRuntime,
-    ICacheManager,
-    Memory,
-    Provider,
-    State,
-} from "@elizaos/core";
+import type { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 
 import {
     TonConnect,
@@ -16,6 +10,7 @@ import {
 } from "@tonconnect/sdk";
 import NodeCache from "node-cache";
 import { CONFIG_KEYS } from "../enviroment";
+import { cacheManager } from "../cache";
 
 const PROVIDER_CONFIG = {
     BRIDGE_URL: "https://bridge.tonapi.io/bridge",
@@ -48,7 +43,7 @@ interface IStorage {
 class CacheManager {
     constructor(
         private memoryCache: NodeCache,
-        private fileCache: ICacheManager,
+        private runtime: IAgentRuntime,
         private baseCacheKey: string,
         private defaultTTL: number
     ) {}
@@ -60,11 +55,11 @@ class CacheManager {
         const memoryCached = this.memoryCache.get<T>(cacheKey);
         if (memoryCached) return memoryCached;
 
-        // Check file cache
-        const fileCached = await this.fileCache.get<T>(cacheKey);
-        if (fileCached) {
-            this.memoryCache.set(cacheKey, fileCached);
-            return fileCached;
+        // Check global cache
+        const globalCached = cacheManager.get<T>(cacheKey);
+        if (globalCached) {
+            this.memoryCache.set(cacheKey, globalCached);
+            return globalCached;
         }
 
         return null;
@@ -77,53 +72,49 @@ class CacheManager {
         // Set in memory cache
         this.memoryCache.set(cacheKey, data, expiresIn);
 
-        // Set in file cache
-        await this.fileCache.set(cacheKey, data, {
-            expires: Date.now() + expiresIn * 1000,
-        });
+        // Set in runtime cache
+        cacheManager.set(cacheKey, data, expiresIn);
     }
 
     async delete(key: string): Promise<void> {
         const cacheKey = `${this.baseCacheKey}/${key}`;
         this.memoryCache.del(cacheKey);
-        await this.fileCache.delete(cacheKey);
+        cacheManager.delete(cacheKey);
     }
 
     async clear(): Promise<void> {
         this.memoryCache.flushAll();
-        await this.fileCache.delete(`${this.baseCacheKey}/*`);
+        // Note: runtime doesn't have a clear all method, so we can't clear all keys
     }
 }
 
 class TonConnectStorage implements IStorage {
-    constructor(private cacheManager: ICacheManager) {}
+    constructor(private runtime: IAgentRuntime) {}
 
     async setItem(key: string, value: string): Promise<void> {
-        await this.cacheManager.set(key, value, {
-            expires: Date.now() + PROVIDER_CONFIG.CACHE_TTL.CONNECTION * 1000,
-        });
+        cacheManager.set(`tonconnect/${key}`, value);
     }
 
     async getItem(key: string): Promise<string | null> {
-        return await this.cacheManager.get<string>(key);
+        return cacheManager.get<string>(`tonconnect/${key}`) || null;
     }
 
     async removeItem(key: string): Promise<void> {
-        await this.cacheManager.delete(key);
+        cacheManager.delete(`tonconnect/${key}`);
     }
 }
 
 export class TonConnectProvider {
     private static instance: TonConnectProvider | null = null;
     private connector: TonConnect;
-    private cacheManager: CacheManager;
+    private cacheManager: CacheManager | null = null;
     private unsubscribe: (() => void) | null = null;
-    private bridgeUrl: string;
-    private manifestUrl: string;
+    private bridgeUrl: string = "";
+    private manifestUrl: string = "";
     private initialized: boolean = false;
     private connected: boolean = false;
+    private runtime: IAgentRuntime | null = null;
     private constructor() {
-        this.cacheManager = {} as CacheManager; // Temporary initialization
         this.connector = {} as TonConnect; // Temporary init
     }
 
@@ -137,7 +128,7 @@ export class TonConnectProvider {
     public async initialize(
         manifestUrl: string,
         bridgeUrl: string,
-        fileCache: ICacheManager
+        fileCache: IAgentRuntime
     ): Promise<void> {
         if (this.initialized) return;
 
@@ -175,7 +166,7 @@ export class TonConnectProvider {
 
     private async initializeConnection(
         manifestUrl: string,
-        fileCache: ICacheManager
+        fileCache: IAgentRuntime
     ): Promise<void> {
         try {
             const storage = new TonConnectStorage(fileCache);
@@ -210,8 +201,10 @@ export class TonConnectProvider {
                 return await operation();
             } catch (error) {
                 // if user declines, don't retry
-                if (error instanceof UserRejectsError 
-                    || error.code === 300)  { 
+                if (
+                    error instanceof UserRejectsError ||
+                    (error as any).code === 300
+                ) {
                     throw error;
                 }
                 if (i === retries - 1) throw error;
@@ -247,6 +240,11 @@ export class TonConnectProvider {
                       ?.universalLink
                 : null;
 
+            // Ensure universalLink is a string before passing it
+            if (!walletUniversalLink) {
+                throw new Error("Wallet universal link is required");
+            }
+
             const walletConnectionSource = {
                 universalLink: walletUniversalLink,
                 bridgeUrl: this.bridgeUrl,
@@ -256,7 +254,7 @@ export class TonConnectProvider {
                 walletConnectionSource
             );
 
-            return universalLink;
+            return universalLink || null;
         } catch (error) {
             this.handleError("Connection error", error);
             return null;
@@ -264,7 +262,7 @@ export class TonConnectProvider {
     }
 
     private async getCachedData<T>(key: string): Promise<T | null> {
-        return await this.cacheManager.get<T>(key);
+        return this.cacheManager ? await this.cacheManager.get<T>(key) : null;
     }
 
     private async setCachedData<T>(
@@ -272,15 +270,21 @@ export class TonConnectProvider {
         data: T,
         ttl?: number
     ): Promise<void> {
-        await this.cacheManager.set(key, data, ttl);
+        if (this.cacheManager) {
+            await this.cacheManager.set(key, data, ttl);
+        }
     }
 
     private async deleteCachedData(key: string): Promise<void> {
-        await this.cacheManager.delete(key);
+        if (this.cacheManager) {
+            await this.cacheManager.delete(key);
+        }
     }
 
     private async clearCache(): Promise<void> {
-        await this.cacheManager.clear();
+        if (this.cacheManager) {
+            await this.cacheManager.clear();
+        }
     }
 
     private handleError(context: string, error: any): void {
@@ -357,28 +361,40 @@ export const initTonConnectProvider = async (runtime: IAgentRuntime) => {
         PROVIDER_CONFIG.BRIDGE_URL;
 
     const provider = TonConnectProvider.getInstance();
-    await provider.initialize(manifestUrl, bridgeUrl, runtime.cacheManager);
+    await provider.initialize(manifestUrl, bridgeUrl, runtime);
     return provider;
 };
 
 export const tonConnectProvider: Provider = {
+    name: "tonConnectProvider",
+    description:
+        "Provides TON Connect wallet connection status and information",
     async get(
         runtime: IAgentRuntime,
         message: Memory,
-        state?: State
-    ): Promise<ConnectorStatus | string> {
-
+        state: State
+    ): Promise<{ text: string; data?: any }> {
         // exit if TONCONNECT is not used
         if (!runtime.getSetting(CONFIG_KEYS.TON_MANIFEST_URL)) {
-            return "TONCONNECT is not enabled.";
+            return { text: "TONCONNECT is not enabled." };
         }
 
         try {
             const provider = await initTonConnectProvider(runtime);
-            return provider.formatConnectionStatus(runtime);
+            const status = await provider.formatConnectionStatus(runtime);
+            if (typeof status === "string") {
+                return { text: status };
+            }
+            return {
+                text: `Wallet ${(status as any).status}: ${(status as any).walletInfo?.name || "Unknown"}`,
+                data: status,
+            };
         } catch (error) {
             console.error("TON Connect provider error:", error);
-            return "Unable to connect to TON wallet. Please try again later.";
+            return {
+                text: "Unable to connect to TON wallet. Please try again later.",
+            };
         }
     },
 };
+

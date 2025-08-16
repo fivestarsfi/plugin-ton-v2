@@ -1,17 +1,14 @@
 import {
     elizaLogger,
+    composePromptFromState,
     type Content,
     type HandlerCallback,
+    ModelType,
+    parseKeyValueXml,
     type IAgentRuntime,
     type Memory,
     type State,
 } from "@elizaos/core";
-import {
-  composePromptFromState,
-  parseKeyValueXml,
-  ModelType, // Note: ModelType replaces ModelClass
-} from '@elizaos/core';
-import { z } from "zod";
 import { initStakingProvider, IStakingProvider } from "../providers/staking";
 
 export interface UnstakeContent extends Content {
@@ -27,23 +24,21 @@ function isUnstakeContent(content: Content): content is UnstakeContent {
     );
 }
 
-const unstakeTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
-
-Example response:
-\`\`\`json
-{
-    "poolId": "pool123",
-    "amount": "1.0"
-}
-\`\`\`
-
-{{recentMessages}}
+const unstakeTemplate = `Extract the unstaking details from the recent messages.
 
 Given the recent messages, extract the following information for unstaking TON:
 - Pool identifier (poolId)
 - Amount to unstake
 
-Respond with a JSON markdown block containing only the extracted values.`;
+Respond with the values in the following XML format:
+<response>
+<poolId>extracted pool id</poolId>
+<amount>extracted amount</amount>
+</response>
+
+{{recentMessages}}
+
+Extract the unstaking details and respond with values in the XML format above.`;
 
 export class UnstakeAction {
     constructor(private stakingProvider: IStakingProvider) {}
@@ -54,12 +49,15 @@ export class UnstakeAction {
         );
         try {
             // Call the staking provider's unstake method.
-            return await this.stakingProvider.unstake(
+            const result = await this.stakingProvider.unstake(
                 params.poolId,
                 Number(params.amount)
             );
+            return result ?? "";
         } catch (error) {
-            throw new Error(`Unstaking failed: ${error.message}`);
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
+            throw new Error(`Unstaking failed: ${errorMessage}`);
         }
     }
 }
@@ -71,45 +69,49 @@ const buildUnstakeDetails = async (
 ): Promise<UnstakeContent> => {
     if (!state) {
         state = (await runtime.composeState(message)) as State;
-    } else {
-        state = await runtime.updateRecentMessageState(state);
     }
-    const unstakeSchema = z.object({
-        poolId: z.string(),
-        amount: z.union([z.string(), z.number()]),
-    });
 
+    // Compose prompt from state
     const prompt = composePromptFromState({
         state,
         template: unstakeTemplate,
     });
 
-    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
-  prompt,
-});
+    // Generate response using the small model
+    const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt,
+    });
 
-const content = parseKeyValueXml(result);
+    // Parse the XML response
+    const responseText =
+        typeof response === "string" ? response : (response as any).value || "";
+    const parsedResponse = parseKeyValueXml(responseText);
 
-    return content.object as UnstakeContent;
+    const unstakeContent: UnstakeContent = {
+        poolId: parsedResponse?.poolId || "",
+        amount: parsedResponse?.amount || "0",
+        text: "", // Required by Content interface
+    };
+
+    return unstakeContent;
 };
 
 export default {
     name: "WITHDRAW_TON",
     similes: ["UNSTAKE_TOKENS", "WITHDRAW_TON", "TON_UNSTAKE"],
-    description:
-        "Withdraw TON tokens from a specified pool.",
+    description: "Withdraw TON tokens from a specified pool.",
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state: State,
-        options: any,
+        state?: State,
+        options?: any,
         callback?: HandlerCallback
     ) => {
         elizaLogger.log("Starting WITHDRAW_TON handler...");
         const unstakeDetails = await buildUnstakeDetails(
             runtime,
             message,
-            state
+            state || (await runtime.composeState(message))
         );
 
         if (!isUnstakeContent(unstakeDetails)) {
@@ -141,11 +143,13 @@ export default {
             }
             return true;
         } catch (error) {
-            elizaLogger.error("Error during unstaking:", error);
+            elizaLogger.error("Error during unstaking:");
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
             if (callback) {
                 callback({
-                    text: `Error unstaking TON: ${error.message}`,
-                    content: { error: error.message },
+                    text: `Error unstaking TON: ${errorMessage}`,
+                    content: { error: errorMessage },
                 });
             }
             return false;
@@ -157,20 +161,23 @@ export default {
         [
             {
                 user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Withdraw 1 TON from pool pool123",
                     action: "WITHDRAW_TON",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "I'll unstake 1 TON now...",
                     action: "WITHDRAW_TON",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "Successfully unstaked 1 TON from pool pool123, Transaction: efgh5678abcd1234",
                 },
@@ -179,20 +186,23 @@ export default {
         [
             {
                 user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "withdraw 12 TON from pool eqw237595asd432",
                     action: "WITHDRAW_TON",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "Withdrawing 12 TON right now...",
                     action: "WITHDRAW_TON",
                 },
             },
             {
-                user: "{{user2}}",
+                user: "assistant",
+                name: "{{agent}}",
                 content: {
                     text: "Successfully unstaked 12 TON from pool eqw237595asd432, Transaction: efgesdrf234h5678abcd1234",
                 },
@@ -200,3 +210,4 @@ export default {
         ],
     ],
 };
+

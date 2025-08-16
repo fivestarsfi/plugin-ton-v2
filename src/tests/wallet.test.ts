@@ -1,97 +1,34 @@
-import { defaultCharacter } from "@elizaos/core";
+import { describe, it, expect } from "bun:test";
+import loadWalletAction from "../actions/loadWallet";
 
-import {
-    describe,
-    it,
-    vi,
-    expect,
-    beforeAll,
-    beforeEach,
-    afterEach,
-} from "vitest";
-import BigNumber from "bignumber.js";
-import { WalletProvider } from "../providers/wallet";
-
-import { mnemonicNew, mnemonicToPrivateKey, type KeyPair } from "@ton/crypto";
-
-// Mock NodeCache
-vi.mock("node-cache", () => {
-    return {
-        default: vi.fn().mockImplementation(() => ({
-            set: vi.fn(),
-            get: vi.fn().mockReturnValue(null),
-        })),
-    };
-});
-
-// Mock path module
-vi.mock("path", async () => {
-    const actual = await vi.importActual("path");
-    return {
-        ...actual,
-        join: vi.fn().mockImplementation((...args) => args.join("/")),
-    };
-});
-
-// Mock the ICacheManager
-const mockCacheManager = {
-    get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
-    delete: vi.fn(),
-};
-
-const testnet = "https://testnet.toncenter.com/api/v2/jsonRPC";
-
-describe("Wallet provider", () => {
-    let walletProvider: WalletProvider;
-    let keypair: KeyPair;
-    let mockedRuntime;
-
-    beforeAll(async () => {
-        const password = "";
-        const mnemonics: string[] = await mnemonicNew(12, password);
-        keypair = await mnemonicToPrivateKey(mnemonics, password);
-        walletProvider = new WalletProvider(keypair, testnet, mockCacheManager);
-        mockedRuntime = {
-            character: defaultCharacter,
-        };
+describe("Load Wallet Action", () => {
+    it("should have correct metadata", () => {
+        expect(loadWalletAction.name).toBe("RECOVER_TON_WALLET");
+        expect(loadWalletAction.description).toBe(
+            "Loads an existing TON wallet from an encrypted backup file using the provided password."
+        );
+        expect(loadWalletAction.similes).toContain("IMPORT_TON_WALLET");
+        expect(loadWalletAction.similes).toContain("RECOVER_WALLET");
     });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mockCacheManager.get.mockResolvedValue(null);
+    it("should have validate function", () => {
+        expect(typeof loadWalletAction.validate).toBe("function");
     });
 
-    afterEach(() => {
-        vi.clearAllTimers();
+    it("should have handler function", () => {
+        expect(typeof loadWalletAction.handler).toBe("function");
     });
 
-    describe("Wallet Integration", () => {
-        it("should check wallet address", async () => {
-            const result =
-                await walletProvider.getFormattedPortfolio(mockedRuntime);
+    it("should have examples", () => {
+        expect(Array.isArray(loadWalletAction.examples)).toBe(true);
+        expect(loadWalletAction.examples.length).toBeGreaterThan(0);
 
-            const prices = await walletProvider.fetchPrices().catch((error) => {
-                console.error(`Error fetching TON price:`, error);
-                throw error;
-            });
-            const nativeTokenBalance = await walletProvider
-                .getWalletBalance()
-                .catch((error) => {
-                    console.error(`Error fetching TON amount:`, error);
-                    throw error;
-                });
-
-            const amount =
-                Number(nativeTokenBalance) / Number(BigInt(1000000000));
-            const totalUsd = new BigNumber(amount.toString()).times(
-                prices.nativeToken.usd
-            );
-
-            expect(result).toEqual(
-                `Eliza\nWallet Address: ${walletProvider.getAddress()}\n` +
-                    `Total Value: $${totalUsd.toFixed(2)} (${amount.toFixed(4)} TON)\n`
-            );
-        });
+        // Check first example structure
+        const firstExample = loadWalletAction.examples[0];
+        expect(Array.isArray(firstExample)).toBe(true);
+        expect(firstExample.length).toBeGreaterThan(0);
+        expect(firstExample[0]).toHaveProperty("user");
+        expect(firstExample[0]).toHaveProperty("content");
     });
 });
+

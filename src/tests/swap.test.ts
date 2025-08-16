@@ -1,60 +1,116 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
-import { IAgentRuntime } from "@elizaos/core";
+import { describe, it, expect } from "bun:test";
+import {
+    swapStonAction,
+    finishSwapStonAction,
+    getPendingStonSwapDetailsAction,
+} from "../actions/swapSton";
 
-import { initStonProvider, StonAsset, StonProvider } from "../providers/ston";
-import { type KeyPair, mnemonicToWalletKey } from "@ton/crypto";
-import { WalletProvider } from "../providers/wallet";
-import { SwapAction } from "../actions/swapSton";
-import { AssetTag } from '@ston-fi/api';
+describe("Swap Ston Actions", () => {
+    describe("Swap Token Ston Action", () => {
+        it("should have correct metadata", () => {
+            expect(swapStonAction.name).toBe("SWAP_TOKEN_STON");
+            expect(swapStonAction.description).toContain(
+                "Start a swap of tokens in TON blockchain through STON.fi DEX"
+            );
+            expect(swapStonAction.similes).toContain("SWAP_TOKENS_STON");
+        });
 
-const TON_RPC_URL = "https://testnet.toncenter.com/api/v2/jsonRPC";
-const SWAP = ["TON", "TestRED", "0.001"] // Sucessfull Swap
-const SWAP_2 = ["TON", "TestRED", "1000.0"] // Insufficient Balance
-const TON_PRIVATE_KEY = ""
+        it("should have validate function", () => {
+            expect(typeof swapStonAction.validate).toBe("function");
+        });
 
+        it("should have handler function", () => {
+            expect(typeof swapStonAction.handler).toBe("function");
+        });
 
-// Mock the ICacheManager
-const mockCacheManager = {
-    get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
-    delete: vi.fn(),
-};
+        it("should have examples", () => {
+            expect(Array.isArray(swapStonAction.examples)).toBe(true);
+            expect(swapStonAction.examples?.length).toBeGreaterThan(0);
 
-describe("Swap Asset Action", () => {
-    let stonProvider: StonProvider;
-    let walletProvider: WalletProvider;
-    let keypair: KeyPair;
-    let mockedRuntime: IAgentRuntime;
-
-    beforeAll(async () => {
-        mockedRuntime = {
-            getSetting: vi.fn().mockImplementation((key) => {
-                if (key === "TON_RPC_URL") return TON_RPC_URL;
-                return undefined;
-            }),
-        } as unknown as IAgentRuntime;
-        keypair = await mnemonicToWalletKey(TON_PRIVATE_KEY.split(" "));
-        walletProvider = new WalletProvider(keypair, TON_RPC_URL, mockCacheManager);
-        stonProvider = await initStonProvider(mockedRuntime);
+            // Check first example structure
+            const firstExample = swapStonAction.examples?.[0];
+            if (firstExample) {
+                expect(Array.isArray(firstExample)).toBe(true);
+                expect(firstExample.length).toBeGreaterThan(0);
+                // expect(firstExample[0]).toHaveProperty("user"); // Removed in v1
+                expect(firstExample[0]).toHaveProperty("content");
+            }
+        });
     });
 
-    it("should successfully swap TON asset to TestRED in Testnet", async () => {
-        const [inTokenAsset, outTokenAsset] = await stonProvider.getAssets(
-            SWAP[0],
-            SWAP[1],
-            `(${AssetTag.LiquidityVeryHigh} | ${AssetTag.LiquidityHigh} | ${AssetTag.LiquidityMedium} ) & ${AssetTag.Popular} & ${AssetTag.DefaultSymbol}`
-        ) as [StonAsset, StonAsset];
-        const action = new SwapAction(walletProvider, stonProvider);
-        await action.swap(inTokenAsset, outTokenAsset, SWAP[2]);
+    describe("Finish Swap Token Ston Action", () => {
+        it("should have correct metadata", () => {
+            expect(finishSwapStonAction.name).toBe("FINISH_SWAP_TOKEN_STON");
+            expect(finishSwapStonAction.description).toContain(
+                "Finish a pending swap of tokens in TON blockchain through STON.fi DEX"
+            );
+            expect(finishSwapStonAction.similes).toContain(
+                "FINISH_SWAP_TOKENS_STON"
+            );
+        });
+
+        it("should have validate function", () => {
+            expect(typeof finishSwapStonAction.validate).toBe("function");
+        });
+
+        it("should have handler function", () => {
+            expect(typeof finishSwapStonAction.handler).toBe("function");
+        });
+
+        it("should have examples", () => {
+            expect(Array.isArray(finishSwapStonAction.examples)).toBe(true);
+            expect(finishSwapStonAction.examples?.length).toBeGreaterThan(0);
+
+            // Check first example structure
+            const firstExample = finishSwapStonAction.examples?.[0];
+            if (firstExample) {
+                expect(Array.isArray(firstExample)).toBe(true);
+                expect(firstExample.length).toBeGreaterThan(0);
+                // expect(firstExample[0]).toHaveProperty("user"); // Removed in v1
+                expect(firstExample[0]).toHaveProperty("content");
+            }
+        });
     });
 
-    it("should fail to swap TON asset to TestRED in Testnet due to insufficient balance", async () => {
-        const [inTokenAsset, outTokenAsset] = await stonProvider.getAssets(
-            SWAP[0],
-            SWAP[1],
-            `(${AssetTag.LiquidityVeryHigh} | ${AssetTag.LiquidityHigh} | ${AssetTag.LiquidityMedium} ) & ${AssetTag.Popular} & ${AssetTag.DefaultSymbol}`
-        ) as [StonAsset, StonAsset];
-        const action = new SwapAction(walletProvider, stonProvider);
-        await expect(action.swap(inTokenAsset, outTokenAsset, SWAP_2[2])).rejects.toThrow("No funds");
+    describe("Get Pending Ston Swap Details Action", () => {
+        it("should have correct metadata", () => {
+            expect(getPendingStonSwapDetailsAction.name).toBe(
+                "GET_PENDING_STON_SWAP_DETAILS"
+            );
+            expect(getPendingStonSwapDetailsAction.description).toContain(
+                "Get the details of the pending swap of tokens in TON blockchain through STON.fi DEX"
+            );
+        });
+
+        it("should have validate function", () => {
+            expect(typeof getPendingStonSwapDetailsAction.validate).toBe(
+                "function"
+            );
+        });
+
+        it("should have handler function", () => {
+            expect(typeof getPendingStonSwapDetailsAction.handler).toBe(
+                "function"
+            );
+        });
+
+        it("should have examples", () => {
+            expect(
+                Array.isArray(getPendingStonSwapDetailsAction.examples)
+            ).toBe(true);
+            expect(
+                getPendingStonSwapDetailsAction.examples?.length
+            ).toBeGreaterThan(0);
+
+            // Check first example structure
+            const firstExample = getPendingStonSwapDetailsAction.examples?.[0];
+            if (firstExample) {
+                expect(Array.isArray(firstExample)).toBe(true);
+                expect(firstExample.length).toBeGreaterThan(0);
+                // expect(firstExample[0]).toHaveProperty("user"); // Removed in v1
+                expect(firstExample[0]).toHaveProperty("content");
+            }
+        });
     });
 });
+

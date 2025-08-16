@@ -1,34 +1,37 @@
 import {
     elizaLogger,
+    composePromptFromState,
+    parseKeyValueXml,
     type Content,
     type HandlerCallback,
+    ModelType,
     type IAgentRuntime,
     type Memory,
     type State,
     type ActionExample,
-    type Action
+    type Action,
 } from "@elizaos/core";
-import {
-  composePromptFromState,
-  parseKeyValueXml,
-  ModelType, // Note: ModelType replaces ModelClass
-} from '@elizaos/core';
-import { z } from "zod";
 import { sleep } from "../utils/util";
+import { initWalletProvider, type WalletProvider } from "../providers/wallet";
+import { cacheManager } from "../cache";
 import {
-    initWalletProvider,
-    type WalletProvider,
-} from "../providers/wallet";
-import { type OpenedContract, 
-         toNano, 
-         type TransactionDescriptionGeneric, 
-         fromNano, 
-         internal 
-        } from "@ton/ton";
-import { AssetTag } from '@ston-fi/api';
+    type OpenedContract,
+    toNano,
+    type TransactionDescriptionGeneric,
+    fromNano,
+    internal,
+} from "@ton/ton";
+import { AssetTag } from "@ston-fi/api";
 import { validateEnvConfig } from "../enviroment";
-import { type StonAsset, initStonProvider, type StonProvider } from "../providers/ston";
-import { initTonConnectProvider, type TonConnectProvider } from "../providers/tonConnect";
+import {
+    type StonAsset,
+    initStonProvider,
+    type StonProvider,
+} from "../providers/ston";
+import {
+    initTonConnectProvider,
+    type TonConnectProvider,
+} from "../providers/tonConnect";
 import { CHAIN, type SendTransactionRequest } from "@tonconnect/sdk";
 import { replaceLastMemory } from "../utils/modifyMemories";
 
@@ -52,33 +55,21 @@ function isSwapContent(content: Content): content is ISwapContent {
     );
 }
 
-
-const swapSchema = z.object({
-    tokenIn: z.string().min(1, { message: "First token is required." }),
-    amountIn: z.string().min(1, { message: "Amount is required." }),
-    tokenOut: z.string().min(1, { message: "Second token is required." }),
-}).strict();
-
-const swapTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
-
-Example response:
-\`\`\`json
-{
-    "tokenIn": "TON",
-    "amountIn": "1",
-    "tokenOut": "USDC"
-}
-\`\`\`
+const swapTemplate = `Extract the swap information from the conversation.
 
 {{recentMessages}}
 
-Given the recent messages, extract the following information about the requested token transfer:
-- Source token
-- Amount to transfer
-- Destination token
+Extract the following information about the requested token swap:
+- Source token (tokenIn)
+- Amount to swap (amountIn)
+- Destination token (tokenOut)
 
-Respond with a JSON markdown block containing only the extracted values.`;
-
+Respond with the extracted values in this XML format:
+<values>
+<tokenIn>SOURCE_TOKEN</tokenIn>
+<amountIn>AMOUNT</amountIn>
+<tokenOut>DESTINATION_TOKEN</tokenOut>
+</values>`;
 
 const finishSwapTemplate = `
 {{recentMessages}}
@@ -91,14 +82,18 @@ export class SwapAction {
     private walletProvider: WalletProvider;
     private tonConnectProvider: TonConnectProvider;
     private stonProvider: StonProvider;
-    private queryId: number;
-    private router: OpenedContract<any>;
-    private proxyTon: OpenedContract<any>;
-    constructor(walletProvider: WalletProvider, stonProvider: StonProvider, tonConnectProvider: TonConnectProvider) {
+    private queryId!: number;
+    private router!: OpenedContract<any>;
+    private proxyTon!: OpenedContract<any>;
+    constructor(
+        walletProvider: WalletProvider,
+        stonProvider: StonProvider,
+        tonConnectProvider: TonConnectProvider
+    ) {
         this.walletProvider = walletProvider;
         this.stonProvider = stonProvider;
         this.tonConnectProvider = tonConnectProvider;
-    };
+    }
 
     async waitSwapStatusMainnet() {
         let waitingSteps = 0;
@@ -113,7 +108,7 @@ export class SwapAction {
             if (swapStatus["@type"] === "Found") {
                 if (swapStatus.exitCode === "swap_ok") {
                     return swapStatus;
-                } 
+                }
                 throw new Error("Swap failed");
             }
 
@@ -122,10 +117,9 @@ export class SwapAction {
                 throw new Error("Swap failed");
             }
         }
-    };
+    }
 
     async waitSwapTransaction(originalLt: string, originalHash: string) {
-
         const client = this.walletProvider.getWalletClient();
 
         const prevLt = originalLt;
@@ -136,13 +130,24 @@ export class SwapAction {
 
         while (true) {
             await sleep(this.stonProvider.TX_WAITING_TIME);
-            const state = await client.getContractState(this.walletProvider.wallet.address);
+            const state = await client.getContractState(
+                this.walletProvider.wallet.address
+            );
             const { lt, hash } = state.lastTransaction ?? { lt: "", hash: "" };
             if (lt !== prevLt && hash !== prevHash) {
-                const tx = await client.getTransaction(this.walletProvider.wallet.address, lt, hash);
+                const tx = await client.getTransaction(
+                    this.walletProvider.wallet.address,
+                    lt,
+                    hash
+                );
                 description = tx?.description as TransactionDescriptionGeneric;
-                if ((description.computePhase?.type === 'vm' && description.actionPhase?.success === true && description.actionPhase?.success)
-                    || (description.computePhase?.type !== 'vm' && description.actionPhase?.success)) {
+                if (
+                    (description.computePhase?.type === "vm" &&
+                        description.actionPhase?.success === true &&
+                        description.actionPhase?.success) ||
+                    (description.computePhase?.type !== "vm" &&
+                        description.actionPhase?.success)
+                ) {
                     return hash;
                 }
                 prevHash = hash;
@@ -151,71 +156,84 @@ export class SwapAction {
             }
             waitingSteps += 1;
             if (waitingSteps > this.stonProvider.TX_WAITING_STEPS) {
-                if (description?.computePhase?.type === 'vm' && description?.actionPhase?.success === true) {
-                    throw new Error("Transaction failed and no more retries received. Compute phase error");
+                if (
+                    description?.computePhase?.type === "vm" &&
+                    description?.actionPhase?.success === true
+                ) {
+                    throw new Error(
+                        "Transaction failed and no more retries received. Compute phase error"
+                    );
                 }
                 if (!description?.actionPhase?.valid) {
-                    throw new Error("Transaction failed and no more retries received. Invalid transaction");
+                    throw new Error(
+                        "Transaction failed and no more retries received. Invalid transaction"
+                    );
                 }
                 if (description?.actionPhase?.noFunds) {
-                    throw new Error("Transaction failed and no more retries received. No funds");
+                    throw new Error(
+                        "Transaction failed and no more retries received. No funds"
+                    );
                 }
-                throw new Error("Transaction failed and no more retries received");
+                throw new Error(
+                    "Transaction failed and no more retries received"
+                );
             }
         }
-    };
+    }
 
     async swap(inAsset: StonAsset, outAsset: StonAsset, amountIn: string) {
-
         const client = this.walletProvider.getWalletClient();
 
         const contract = client.open(this.walletProvider.wallet);
 
-        [this.router, this.proxyTon] = this.stonProvider.getRouterAndProxy(client);
+        [this.router, this.proxyTon] =
+            this.stonProvider.getRouterAndProxy(client);
 
         this.queryId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
-        const prevState = await client.getContractState(this.walletProvider.wallet.address);
-        const { lt: prevLt, hash: prevHash } = prevState.lastTransaction ?? { lt: "", hash: "" };
+        const prevState = await client.getContractState(
+            this.walletProvider.wallet.address
+        );
+        const { lt: prevLt, hash: prevHash } = prevState.lastTransaction ?? {
+            lt: "",
+            hash: "",
+        };
 
         let txParams;
         let userAddress: string;
         if (this.tonConnectProvider.isConnected()) {
-            userAddress = this.tonConnectProvider.getWalletInfo()?.account.address;
+            userAddress =
+                this.tonConnectProvider.getWalletInfo()?.account.address || "";
         } else {
             userAddress = this.walletProvider.getAddress();
         }
         if (inAsset.kind === "Ton" && outAsset.kind === "Jetton") {
-            txParams = await this.router.getSwapTonToJettonTxParams(
-                {
-                    userWalletAddress: userAddress,
-                    proxyTon: this.proxyTon,
-                    offerAmount: toNano(amountIn),
-                    askJettonAddress: outAsset.contractAddress,
-                    minAskAmount: "1",
-                    queryId: this.queryId,
-                }
-            );
+            txParams = await this.router.getSwapTonToJettonTxParams({
+                userWalletAddress: userAddress,
+                proxyTon: this.proxyTon,
+                offerAmount: toNano(amountIn),
+                askJettonAddress: outAsset.contractAddress,
+                minAskAmount: "1",
+                queryId: this.queryId,
+            });
         } else if (inAsset.kind === "Jetton" && outAsset.kind === "Ton") {
-            txParams = await this.router.getSwapJettonToTonTxParams(
-                {
-                    userWalletAddress: userAddress,
-                    offerJettonAddress: inAsset.contractAddress,
-                    offerAmount: toNano(amountIn),
-                    minAskAmount: "1",
-                    proxyTon: this.proxyTon,
-                    queryId: this.queryId,
-                });
+            txParams = await this.router.getSwapJettonToTonTxParams({
+                userWalletAddress: userAddress,
+                offerJettonAddress: inAsset.contractAddress,
+                offerAmount: toNano(amountIn),
+                minAskAmount: "1",
+                proxyTon: this.proxyTon,
+                queryId: this.queryId,
+            });
         } else if (inAsset.kind === "Jetton" && outAsset.kind === "Jetton") {
-            txParams = await this.router.getSwapJettonToJettonTxParams(
-                {
-                    userWalletAddress: userAddress,
-                    offerJettonAddress: inAsset.contractAddress,
-                    offerAmount: toNano(amountIn),
-                    askJettonAddress: outAsset.contractAddress,
-                    minAskAmount: "1",
-                    queryId: this.queryId,
-                });
+            txParams = await this.router.getSwapJettonToJettonTxParams({
+                userWalletAddress: userAddress,
+                offerJettonAddress: inAsset.contractAddress,
+                offerAmount: toNano(amountIn),
+                askJettonAddress: outAsset.contractAddress,
+                minAskAmount: "1",
+                queryId: this.queryId,
+            });
         }
 
         let amountOut = "";
@@ -224,12 +242,17 @@ export class SwapAction {
         if (this.tonConnectProvider.isConnected()) {
             const transaction: SendTransactionRequest = {
                 validUntil: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
-                network: this.stonProvider.NETWORK === "mainnet" ? CHAIN.MAINNET : CHAIN.TESTNET,
-                messages: [{
-                    address: txParams.to?.toString(),
-                    amount: txParams.value.toString(),
-                    payload: txParams.body?.toBoc().toString("base64")
-                }]
+                network:
+                    this.stonProvider.NETWORK === "mainnet"
+                        ? CHAIN.MAINNET
+                        : CHAIN.TESTNET,
+                messages: [
+                    {
+                        address: txParams.to?.toString(),
+                        amount: txParams.value.toString(),
+                        payload: txParams.body?.toBoc().toString("base64"),
+                    },
+                ],
             };
             txHash = await this.tonConnectProvider.sendTransaction(transaction);
         } else {
@@ -237,50 +260,53 @@ export class SwapAction {
                 seqno: await contract.getSeqno(),
                 secretKey: this.walletProvider.keypair.secretKey,
                 messages: [internal(txParams)],
-              });
+            });
             txHash = await this.waitSwapTransaction(prevLt, prevHash);
         }
 
         if (this.stonProvider.NETWORK === "mainnet") {
-            const swapStatus = await this.waitSwapStatusMainnet() as { txHash: string, coins: string };
+            const swapStatus = (await this.waitSwapStatusMainnet()) as {
+                txHash: string;
+                coins: string;
+            };
             txHash = swapStatus.txHash;
             amountOut = swapStatus.coins;
         }
 
         return { txHash, amountOut };
-    };
-};
+    }
+}
 
 const buildSwapDetails = async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State,
+    state: State
 ): Promise<ISwapContent> => {
-
     let currentState = state;
-if (!currentState) {
-  currentState = await runtime.composeState(message);
-} else {
-  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
-}
+    if (!currentState) {
+        currentState = (await runtime.composeState(message)) as State;
+    }
 
     // Compose swap context
-    const prompt = composePromptFromState({
+    const swapContext = composePromptFromState({
         state: currentState,
         template: swapTemplate,
     });
 
-    // Generate swap content with the schema
-    const result = await runtime.useModel(ModelType.TEXT_SMALL, {
-  prompt,
-});
+    // Generate swap content
+    const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt: swapContext,
+    });
 
-    const content = parseKeyValueXml(result);
-    let swapContent: ISwapContent = content.object as ISwapContent;
+    const parsedResponse = parseKeyValueXml(
+        typeof response === "string" ? response : (response as any).value || ""
+    );
 
-    if (swapContent === undefined) {
-        swapContent = content as unknown as ISwapContent;
-    }
+    const swapContent: ISwapContent = {
+        tokenIn: parsedResponse?.tokenIn || "",
+        amountIn: parsedResponse?.amountIn || "",
+        tokenOut: parsedResponse?.tokenOut || "",
+    };
 
     return swapContent;
 };
@@ -288,54 +314,53 @@ if (!currentState) {
 const buildFinishSwapDetails = async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State,
+    state: State
 ): Promise<boolean> => {
-
     let currentState = state;
-if (!currentState) {
-  currentState = await runtime.composeState(message);
-} else {
-  currentState = await runtime.composeState(message, ['RECENT_MESSAGES']);
-}
+    if (!currentState) {
+        currentState = (await runtime.composeState(message)) as State;
+    }
 
     // Compose swap context
-    const swapIsToBeFinished = composeContext({
+    const swapIsToBeFinished = composePromptFromState({
         state: currentState,
         template: finishSwapTemplate,
     });
 
-    // Generate swap content with the schema
-    return await generateTrueOrFalse({
-        runtime,
-        context: swapIsToBeFinished,
-        modelClass: ModelClass.SMALL,
+    // Generate true/false response
+    const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt: swapIsToBeFinished,
     });
+
+    // Parse the response to determine if it's true or false
+    const lowerResponse = response.toLowerCase().trim();
+    return (
+        lowerResponse.includes("true") ||
+        lowerResponse.includes("yes") ||
+        lowerResponse.includes("finish")
+    );
 };
 
 async function handleSwapStart(
-        runtime: IAgentRuntime, 
-        message: Memory, 
-        state: State, 
-        callback?: HandlerCallback
-    ) {
-    const swapContent = await buildSwapDetails(
-        runtime,
-        message,
-        state,
-    );
-    
+    runtime: IAgentRuntime,
+    message: Memory,
+    state: State,
+    callback?: HandlerCallback
+) {
+    const swapContent = await buildSwapDetails(runtime, message, state);
+
     // Validate transfer content
     if (!isSwapContent(swapContent)) {
         throw new Error("Invalid content for SWAP action.");
     }
     const stonProvider = await initStonProvider(runtime);
-    
+
     // Check if tokens are part of available assets and the pair of tokens is also defined
-    const [inTokenAsset, outTokenAsset] = await stonProvider.getAssets(
+    const [inTokenAsset, outTokenAsset] = (await stonProvider.getAssets(
         swapContent.tokenIn,
         swapContent.tokenOut,
         `(${AssetTag.LiquidityVeryHigh} | ${AssetTag.LiquidityHigh} | ${AssetTag.LiquidityMedium} ) & ${AssetTag.Popular} & ${AssetTag.DefaultSymbol}`
-    ) as [StonAsset, StonAsset];
+    )) as [StonAsset, StonAsset];
 
     const template = `
     # Recent messages:
@@ -351,8 +376,8 @@ async function handleSwapStart(
     const response = await replaceLastMemory(runtime, state, template);
 
     callback?.(response.content);
-    
-    await runtime.cacheManager.set("pendingStonSwap", {
+
+    cacheManager.set("pendingStonSwap", {
         amountIn: swapContent.amountIn,
         assetIn: inTokenAsset,
         assetOut: outTokenAsset,
@@ -360,18 +385,13 @@ async function handleSwapStart(
 }
 
 async function handleSwapFinish(
-        runtime: IAgentRuntime, 
-        message: Memory, 
-        state: State, 
-        pendingSwap: IPendingSwapContent,
-        callback?: HandlerCallback
-    ) {
-
-    const finishSwap = await buildFinishSwapDetails(
-        runtime,
-        message,
-        state,
-    );
+    runtime: IAgentRuntime,
+    message: Memory,
+    state: State,
+    pendingSwap: IPendingSwapContent,
+    callback?: HandlerCallback
+) {
+    const finishSwap = await buildFinishSwapDetails(runtime, message, state);
 
     if (!finishSwap) {
         const template = `
@@ -388,17 +408,27 @@ async function handleSwapFinish(
 
         callback?.(response.content);
 
-        await runtime.cacheManager.delete("pendingStonSwap");
+        cacheManager.delete("pendingStonSwap");
         return;
     }
     const stonProvider = await initStonProvider(runtime);
     const walletProvider = await initWalletProvider(runtime);
     const tonConnectProvider = await initTonConnectProvider(runtime);
-    const action = new SwapAction(walletProvider, stonProvider, tonConnectProvider);
-    const { txHash, amountOut } = await action.swap(pendingSwap.assetIn, pendingSwap.assetOut, pendingSwap.amountIn);
-    
-    elizaLogger.success(`Successfully swapped ${pendingSwap.amountIn} ${pendingSwap.assetIn.symbol} for ${fromNano(amountOut)} ${pendingSwap.assetOut.symbol}, Transaction: ${txHash}`);
-    
+    const action = new SwapAction(
+        walletProvider,
+        stonProvider,
+        tonConnectProvider
+    );
+    const { txHash, amountOut } = await action.swap(
+        pendingSwap.assetIn,
+        pendingSwap.assetOut,
+        pendingSwap.amountIn
+    );
+
+    elizaLogger.success(
+        `Successfully swapped ${pendingSwap.amountIn} ${pendingSwap.assetIn.symbol} for ${fromNano(amountOut)} ${pendingSwap.assetOut.symbol}, Transaction: ${txHash}`
+    );
+
     const template = `
     # Recent messages:
     {{recentMessages}}
@@ -414,14 +444,17 @@ async function handleSwapFinish(
 
     callback?.(response.content);
 
-    await runtime.cacheManager.delete("pendingStonSwap");        
+    cacheManager.delete("pendingStonSwap");
 }
 
 export const swapStonAction = {
     name: "SWAP_TOKEN_STON",
     similes: ["SWAP_TOKENS_STON"],
     validate: async (runtime: IAgentRuntime, message: Memory) => {
-        elizaLogger.log("Validating config for user:", message.userId);
+        elizaLogger.log(
+            "Validating config for user:",
+            (message as any).userId || message.id
+        );
         await validateEnvConfig(runtime);
         return true;
     },
@@ -433,34 +466,45 @@ export const swapStonAction = {
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state: State,
-        _options: { [key: string]: unknown },
-        callback?: HandlerCallback,
+        state?: State,
+        _options?: { [key: string]: unknown },
+        callback?: HandlerCallback
     ) => {
         try {
             elizaLogger.log("Starting SWAP handler...");
 
-            const pendingSwap = await runtime.cacheManager.get("pendingStonSwap");
+            const pendingSwap =
+                cacheManager.get<IPendingSwapContent>("pendingStonSwap");
 
             if (pendingSwap) {
-                throw new Error("Pending swap, finish it before starting a new one");
-            } 
+                throw new Error(
+                    "Pending swap, finish it before starting a new one"
+                );
+            }
 
-            await handleSwapStart(runtime, message, state, callback);
+            await handleSwapStart(
+                runtime,
+                message,
+                state || ({} as State),
+                callback
+            );
 
             return true;
-    
         } catch (error) {
             elizaLogger.error("Error during token swap:", error);
 
             const template = `  
             # Recent messages:
             {{recentMessages}}
-            # Task: Write the response from {{agentName}} to communicate that there was a problem with the swap due to ${error.message}.
+            # Task: Write the response from {{agentName}} to communicate that there was a problem with the swap due to ${error instanceof Error ? error.message : "Unknown error"}.
             It should be one paragraph and include the information of the error.
             `;
 
-            const response = await replaceLastMemory(runtime, state, template);
+            const response = await replaceLastMemory(
+                runtime,
+                state || ({} as State),
+                template
+            );
 
             await callback?.(response.content);
 
@@ -470,33 +514,33 @@ export const swapStonAction = {
     examples: [
         [
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Swap 1 TON for USDC",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Are you sure you want to swap 1 TON for USDC...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Yes, I want to finish the swap",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Ok, I will proceed with the swap...",
                     action: "FINISH_SWAP_TOKENS_STON",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Successfully swapped 1 TON for {{dynamic}} USDC, Transaction: {{dynamic}}",
                 },
@@ -504,46 +548,49 @@ export const swapStonAction = {
         ],
         [
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Swap 1 TON for USDC",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Are you sure you want to swap 1 TON for USDC...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "no, I decided not to do it",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Ok, I will cancel the swap...",
                     action: "FINISH_SWAP_TOKENS_STON",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "The swap has been canceled",
                 },
             },
         ],
-    ] as ActionExample[][],
+    ],
 } as Action;
 
 export const finishSwapStonAction = {
     name: "FINISH_SWAP_TOKEN_STON",
     similes: ["FINISH_SWAP_TOKENS_STON"],
     validate: async (runtime: IAgentRuntime, message: Memory) => {
-        elizaLogger.log("Validating config for user:", message.userId);
+        elizaLogger.log(
+            "Validating config for user:",
+            (message as any).userId || message.id
+        );
         await validateEnvConfig(runtime);
         return true;
     },
@@ -555,33 +602,43 @@ export const finishSwapStonAction = {
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state: State,
-        _options: { [key: string]: unknown },
-        callback?: HandlerCallback,
+        state?: State,
+        _options?: { [key: string]: unknown },
+        callback?: HandlerCallback
     ) => {
         try {
             elizaLogger.log("Starting FINISH SWAP handler...");
 
-            const pendingSwap = await runtime.cacheManager.get("pendingStonSwap");
+            const pendingSwap =
+                cacheManager.get<IPendingSwapContent>("pendingStonSwap");
 
             if (!pendingSwap) {
                 throw new Error("No pending swap, start a new one first");
-            } 
-            
-            await handleSwapFinish(runtime, message, state, pendingSwap as IPendingSwapContent, callback);
+            }
+
+            await handleSwapFinish(
+                runtime,
+                message,
+                state || ({} as State),
+                pendingSwap as IPendingSwapContent,
+                callback
+            );
             return true;
-    
         } catch (error) {
             elizaLogger.error("Error during token swap:", error);
 
             const template = `
             # Recent messages:
             {{recentMessages}}
-            # Task: Write the response from {{agentName}} to communicate that there was a problem with the swap due to ${error.message}.
+            # Task: Write the response from {{agentName}} to communicate that there was a problem with the swap due to ${error instanceof Error ? error.message : "Unknown error"}.
             It should be one paragraph and include the information of the error.
             `;
 
-            const response = await replaceLastMemory(runtime, state, template);
+            const response = await replaceLastMemory(
+                runtime,
+                state || ({} as State),
+                template
+            );
 
             await callback?.(response.content);
 
@@ -591,33 +648,33 @@ export const finishSwapStonAction = {
     examples: [
         [
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Swap 1 TON for USDC",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Are you sure you want to swap 1 TON for USDC...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Yes, I want to finish the swap",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Ok, I will proceed with the swap...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Successfully swapped 1 TON for {{dynamic}} USDC, Transaction: {{dynamic}}",
                 },
@@ -625,48 +682,49 @@ export const finishSwapStonAction = {
         ],
         [
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "Swap 1 TON for USDC",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Are you sure you want to swap 1 TON for USDC...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "no, I decided not to do it",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "Ok, I will cancel the swap...",
                     action: "SWAP_TOKEN_STON",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "The swap has been canceled",
                 },
             },
         ],
-    ] as ActionExample[][],
+    ],
 } as Action;
-
-
 
 export const getPendingStonSwapDetailsAction = {
     name: "GET_PENDING_STON_SWAP_DETAILS",
     similes: [],
     validate: async (runtime: IAgentRuntime, message: Memory) => {
-        elizaLogger.log("Validating config for user:", message.userId);
+        elizaLogger.log(
+            "Validating config for user:",
+            (message as any).userId || message.id
+        );
         await validateEnvConfig(runtime);
         return true;
     },
@@ -677,16 +735,17 @@ export const getPendingStonSwapDetailsAction = {
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state: State,
-        _options: { [key: string]: unknown },
-        callback?: HandlerCallback,
+        state?: State,
+        _options?: { [key: string]: unknown },
+        callback?: HandlerCallback
     ) => {
         try {
             elizaLogger.log("Starting GET PENDING SWAP DETAILS handler...");
 
-            const pendingSwapCache = await runtime.cacheManager.get("pendingStonSwap");
+            const pendingSwapCache =
+                cacheManager.get<IPendingSwapContent>("pendingStonSwap");
 
-            let template = ""
+            let template = "";
             if (!pendingSwapCache) {
                 template = `
                 # Recent messages:
@@ -708,23 +767,30 @@ export const getPendingStonSwapDetailsAction = {
                 - Address of the output token contract ${pendingSwap.assetOut.contractAddress}
                 `;
             }
-            const response = await replaceLastMemory(runtime, state, template);
+            const response = await replaceLastMemory(
+                runtime,
+                state || ({} as State),
+                template
+            );
 
-            await callback?.(response.content);           
-            
+            await callback?.(response.content);
+
             return true;
-    
         } catch (error) {
             elizaLogger.error("Error during token swap:", error);
 
             const template = `
             # Recent messages:
             {{recentMessages}}  
-            # Task: Write the response from {{agentName}} to communicate that there was a problem getting the pending swap details due to ${error.message}.
+            # Task: Write the response from {{agentName}} to communicate that there was a problem getting the pending swap details due to ${error instanceof Error ? error.message : "Unknown error"}.
             It should be one paragraph and include the information of the error.
             `;
 
-            const response = await replaceLastMemory(runtime, state, template);
+            const response = await replaceLastMemory(
+                runtime,
+                state || ({} as State),
+                template
+            );
 
             await callback?.(response.content);
 
@@ -734,18 +800,19 @@ export const getPendingStonSwapDetailsAction = {
     examples: [
         [
             {
-                user: "{{user1}}",
+                name: "{{user1}}",
                 content: {
                     text: "What are the details of the pending swap?",
                 },
             },
             {
-                user: "{{agent}}",
+                name: "{{agent}}",
                 content: {
                     text: "The pending swap is 1 TON for USDC",
                     action: "GET_PENDING_SWAP_DETAILS",
                 },
             },
         ],
-    ] as ActionExample[][],
+    ],
 } as Action;
+

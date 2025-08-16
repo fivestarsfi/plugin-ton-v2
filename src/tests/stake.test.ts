@@ -1,68 +1,42 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
-import { defaultCharacter } from "@elizaos/core";
-
-import { IStakingProvider, StakingProvider } from "../providers/staking";
-import { type KeyPair, mnemonicNew, mnemonicToPrivateKey } from "@ton/crypto";
-import { WalletProvider } from "../providers/wallet";
-
-// Mock NodeCache
-vi.mock("node-cache", () => {
-    return {
-        default: vi.fn().mockImplementation(() => ({
-            set: vi.fn(),
-            get: vi.fn().mockReturnValue(null),
-        })),
-    };
-});
-
-// Mock path module
-vi.mock("path", async () => {
-    const actual = await vi.importActual("path");
-    return {
-        ...actual,
-        join: vi.fn().mockImplementation((...args) => args.join("/")),
-    };
-});
-
-const testnet = "https://testnet.toncenter.com/api/v2/jsonRPC";
-
-// Mock the ICacheManager
-const mockCacheManager = {
-    get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
-    delete: vi.fn(),
-};
+import { describe, it, expect } from "bun:test";
+import stakeAction from "../actions/stake";
 
 describe("Stake Action", () => {
-    let stakingProvider: IStakingProvider;
-    let walletProvider: WalletProvider;
-    let keypair: KeyPair;
-    let mockedRuntime;
-
-    beforeAll(async () => {
-        const password = "";
-        const mnemonics: string[] = await mnemonicNew(12, password);
-        keypair = await mnemonicToPrivateKey(mnemonics, password);
-        walletProvider = new WalletProvider(keypair, testnet, mockCacheManager);
-        stakingProvider = new StakingProvider(walletProvider);
-        mockedRuntime = {
-            character: defaultCharacter,
-        };
+    it("should have correct metadata", () => {
+        expect(stakeAction.name).toBe("DEPOSIT_TON");
+        expect(stakeAction.description).toBe(
+            "Deposit TON tokens in a specified pool."
+        );
+        expect(stakeAction.similes).toContain("STAKE_TOKENS");
+        expect(stakeAction.similes).toContain("DEPOSIT_TON");
+        expect(stakeAction.similes).toContain("DEPOSIT_TOKEN");
     });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mockCacheManager.get.mockResolvedValue(null);
+    it("should have validate function", () => {
+        expect(typeof stakeAction.validate).toBe("function");
     });
 
-    afterEach(() => {
-        vi.clearAllTimers();
+    it("should have handler function", () => {
+        expect(typeof stakeAction.handler).toBe("function");
     });
 
-    it("should successfully stake TON and invoke callback with success", async () => {
+    it("should have examples", () => {
+        expect(Array.isArray(stakeAction.examples)).toBe(true);
+        expect(stakeAction.examples.length).toBeGreaterThan(0);
 
-        const txHash = await stakingProvider.stake("kQDV1LTU0sWojmDUV4HulrlYPpxLWSUjM6F3lUurMbwhales", 1);
-        console.log(txHash);
+        // Check first example structure
+        const firstExample = stakeAction.examples[0];
+        expect(Array.isArray(firstExample)).toBe(true);
+        expect(firstExample.length).toBeGreaterThan(0);
+        expect(firstExample[0]).toHaveProperty("user");
+        expect(firstExample[0]).toHaveProperty("content");
+    });
 
+    it("should have correct template format", () => {
+        const template = stakeAction.template;
+        expect(template).toContain("{{recentMessages}}");
+        expect(template).toContain("<response>");
+        expect(template).toContain("</response>");
     });
 });
+

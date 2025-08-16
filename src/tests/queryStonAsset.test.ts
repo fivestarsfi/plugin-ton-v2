@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "bun:test";
+import { jest } from "bun:test";
 import type { IAgentRuntime } from "@elizaos/core";
 import { initStonProvider, type StonProvider } from "../providers/ston";
 
@@ -11,7 +12,7 @@ describe("Query Ston Asset Action", () => {
 
     beforeAll(async () => {
         mockedRuntime = {
-            getSetting: vi.fn().mockImplementation((key) => {
+            getSetting: jest.fn().mockImplementation((key) => {
                 if (key == "TON_RPC_URL") return TON_RPC_URL;
                 return undefined;
             }),
@@ -25,6 +26,9 @@ describe("Query Ston Asset Action", () => {
     });
 
     it("should fail to query a non existent asset", async () => {
-        await expect(stonProvider.getAsset("NonExistentAsset")).rejects.toThrow("Asset NonExistentAsset not supported");
+        await expect(stonProvider.getAsset("NonExistentAsset")).rejects.toThrow(
+            "Asset NonExistentAsset not supported"
+        );
     });
 });
+
