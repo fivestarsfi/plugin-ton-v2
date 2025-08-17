@@ -480,4 +480,3 @@ export const showConnectionStatusAction: Action = {
         ],
     ],
 };
-

@@ -39,4 +39,3 @@ describe("Get Pool Info Action", () => {
         expect(template).toContain("</values>");
     });
 });
-

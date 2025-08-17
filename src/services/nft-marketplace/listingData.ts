@@ -149,3 +149,4 @@ export async function getNextValidBidAmount(walletProvider: WalletProvider, nftA
   const minIncrement = (listingData.lastBid * BigInt(auctionData.minStep)) / BigInt(100);
   return listingData.lastBid + minIncrement;
 }
+

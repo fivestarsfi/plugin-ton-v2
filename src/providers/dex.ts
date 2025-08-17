@@ -288,4 +288,3 @@ export const initProvider = async (
     elizaLogger.log(`DexProvider: Initializing provider on ${network} network`);
     return new DexProvider(walletProvider, network);
 };
-

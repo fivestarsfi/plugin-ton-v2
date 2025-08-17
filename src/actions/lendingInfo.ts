@@ -385,4 +385,3 @@ Health factor (account could be liquidated if < 0): 0.133`,
         ],
     ],
 };
-

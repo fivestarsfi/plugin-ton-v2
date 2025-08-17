@@ -649,4 +649,3 @@ const withdrawAction: Action = {
 };
 
 export default withdrawAction;
-

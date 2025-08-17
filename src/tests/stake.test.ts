@@ -39,4 +39,3 @@ describe("Stake Action", () => {
         expect(template).toContain("</response>");
     });
 });
-

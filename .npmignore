@@ -1,0 +1,39 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Config files
+tsconfig.json
+tsup.config.ts
+.prettierrc
+.eslintrc*
+
+# Test files
+**/*.test.*
+**/*.spec.*
+coverage/
+.nyc_output/
+
+# Development files
+.env*
+.vscode/
+.idea/
+.turbo/
+
+# Documentation source
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+.DS_Store
+*.log
+*.tmp
+node_modules/
+bun.lockb

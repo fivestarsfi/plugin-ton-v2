@@ -220,4 +220,3 @@ export async function initStonProvider(
 ): Promise<StonProvider> {
     return new StonProvider(runtime);
 }
-

@@ -742,4 +742,3 @@ const supplyAction: Action = {
 };
 
 export default supplyAction;
-

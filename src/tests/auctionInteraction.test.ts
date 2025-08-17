@@ -1,3 +1,4 @@
+
 import { describe, it, expect } from "bun:test";
 import auctionInteractionAction from "../actions/auctionInteraction";
 
@@ -38,4 +39,3 @@ describe("Auction Interaction Action", () => {
         expect(template).toContain("</values>");
     });
 });
- 

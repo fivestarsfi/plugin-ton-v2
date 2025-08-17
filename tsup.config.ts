@@ -10,3 +10,4 @@ export default defineConfig({
   dts: true,
   external: ['dotenv', 'fs', 'path', 'https', 'http', '@elizaos/core', 'zod'],
 });
+

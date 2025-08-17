@@ -620,4 +620,3 @@ const repayAction: Action = {
 };
 
 export default repayAction;
-

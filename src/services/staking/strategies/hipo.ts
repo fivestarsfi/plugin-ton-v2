@@ -14,7 +14,14 @@ import { internal } from "@ton/ton";
 import { WalletProvider } from "../../../providers/wallet.ts";
 import { elizaLogger } from "@elizaos/core";
 
-import { Treasury, Wallet, Parent, TreasuryConfig, feeStake, feeUnstake } from "./hipo/sdk/index.ts";
+import {
+    Treasury,
+    Wallet,
+    Parent,
+    TreasuryConfig,
+    feeStake,
+    feeUnstake,
+} from "./hipo/sdk/index.ts";
 import { PoolInfo } from "../interfaces/pool.ts";
 
 async function getTreasuryState(
@@ -60,7 +67,7 @@ async function getExchangeRate(
 }
 
 function calculateJettonsToTon(jettons: bigint, rate: number): bigint {
-    console.info(jettons)
+    console.info(jettons);
     return !rate || !jettons
         ? BigInt(0)
         : BigInt(toNano(Number(fromNano(jettons)) * (1 / rate)));
@@ -112,8 +119,14 @@ export class HipoStrategy implements StakingPlatform {
                 deposit_fee: feeStake,
                 withdraw_fee: feeUnstake,
                 balance: calculateJettonsToTon(result.totalTokens, rate),
-                pending_deposits: calculateJettonsToTon(result.totalStaking, rate),
-                pending_withdraws: calculateJettonsToTon(result.totalUnstaking, rate),
+                pending_deposits: calculateJettonsToTon(
+                    result.totalStaking,
+                    rate
+                ),
+                pending_withdraws: calculateJettonsToTon(
+                    result.totalUnstaking,
+                    rate
+                ),
             };
         } catch (error) {
             console.error("Error fetching Hipo pool info:", error);

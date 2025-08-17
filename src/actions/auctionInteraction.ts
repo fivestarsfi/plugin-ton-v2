@@ -918,4 +918,3 @@ export default {
         ],
     ],
 };
-

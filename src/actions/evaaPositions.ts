@@ -700,4 +700,3 @@ const positionsAction: Action = {
 };
 
 export default positionsAction;
-

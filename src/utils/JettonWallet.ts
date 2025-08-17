@@ -1,4 +1,4 @@
-import { Address, beginCell, Cell, Contract,toNano, internal } from "@ton/ton";
+import { Address, beginCell, Cell, Contract, toNano, internal } from "@ton/ton";
 import { WalletProvider } from "../providers/wallet";
 import { waitSeqnoContract } from "./util";
 
@@ -8,7 +8,10 @@ export const OP_CODES = {
 } as const;
 
 export class JettonWallet implements Contract {
-    constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
+    constructor(
+        readonly address: Address,
+        readonly init?: { code: Cell; data: Cell }
+    ) {}
 
     static createFromAddress(address: Address) {
         return new JettonWallet(address);
@@ -22,28 +25,28 @@ export class JettonWallet implements Contract {
      * @param body Message body
      */
     private async sendTransaction(
-      walletProvider: WalletProvider,
-      to: Address,
-      value: string | bigint,
-      body: Cell
+        walletProvider: WalletProvider,
+        to: Address,
+        value: string | bigint,
+        body: Cell
     ) {
-      const provider = walletProvider.getWalletClient();
-      const contract = provider.open(walletProvider.wallet);
-      const seqno = await contract.getSeqno();
-      
-      await contract.sendTransfer({
-        seqno: seqno,
-        secretKey: walletProvider.keypair.secretKey,
-        messages: [
-          internal({
-            value,
-            to,
-            body,
-          }),
-        ],
-      });
-      
-      await waitSeqnoContract(seqno, contract);
+        const provider = walletProvider.getWalletClient();
+        const contract = provider.open(walletProvider.wallet);
+        const seqno = await contract.getSeqno();
+
+        await contract.sendTransfer({
+            seqno: seqno,
+            secretKey: walletProvider.keypair.secretKey,
+            messages: [
+                internal({
+                    value,
+                    to,
+                    body,
+                }),
+            ],
+        });
+
+        await waitSeqnoContract(seqno, contract);
     }
 
     static transferMessage(
@@ -78,23 +81,31 @@ export class JettonWallet implements Contract {
             walletProvider,
             this.address,
             toNano(0.05) + forwardAmount,
-            JettonWallet.transferMessage(to, amount, responseAddress, forwardAmount, forwardPayload)
+            JettonWallet.transferMessage(
+                to,
+                amount,
+                responseAddress,
+                forwardAmount,
+                forwardPayload
+            )
         );
     }
-    
+
     async getWalletData(walletProvider: WalletProvider) {
         const client = walletProvider.getWalletClient();
-        const result = await client.provider(this.address).get('get_wallet_data', []);
+        const result = await client
+            .provider(this.address)
+            .get("get_wallet_data", []);
         const balance = result.stack.readBigNumber();
         const owner = result.stack.readAddress();
         const jettonMaster = result.stack.readAddress();
         const walletCode = result.stack.readCell();
-        
+
         return {
             balance,
             owner,
             jettonMaster,
-            walletCode
+            walletCode,
         };
     }
 
@@ -107,4 +118,4 @@ export class JettonWallet implements Contract {
         const data = await this.getWalletData(provider);
         return data.owner;
     }
-} 
+}
